@@ -264,9 +264,10 @@ const loadData = async (type: 'daily' | 'minute' | 'hourly' | 'monthly' | 'yearl
 // 分别处理邮件和短信告警
 const sendEmailAlert = async (value: number, type: string) => {
           const adjustedValue = Math.abs(value);
-          console.log("adjustedValue",adjustedValue);
-          console.log("emailThreshold",emailThreshold.value);
+          console.log(`[邮件检查] 设备 ${selectedDevice.value.deviceId} - ${type}轴: 实际值=${adjustedValue.toFixed(6)} gal, 邮件阈值=${emailThreshold.value}`);
           if (adjustedValue > emailThreshold.value) {
+            console.log(`[异常检测] 设备 ${selectedDevice.value.deviceId} 的 ${type} 轴检测到异常！`);
+            console.log(`[异常详情] 实际值: ${adjustedValue.toFixed(6)} gal, 邮件阈值: ${emailThreshold.value}, 超出: ${(adjustedValue - emailThreshold.value).toFixed(6)} gal`);
             try {
               // 发送邮件警报
               await axios.post("http://localhost:3001/api/alert", {
@@ -291,12 +292,17 @@ const sendEmailAlert = async (value: number, type: string) => {
                 console.error("错误响应:", error.response.data);
               }
             }
+          } else {
+            console.log(`[邮件检查] 设备 ${selectedDevice.value.deviceId} - ${type}轴: 未超过邮件阈值，正常`);
           }
         };
 
 const sendSMSAlert = async (value: number, type: string) => {
   const adjustedValue = Math.abs(value);
+  console.log(`[短信检查] 设备 ${selectedDevice.value.deviceId} - ${type}轴: 实际值=${adjustedValue.toFixed(6)} gal, 短信阈值=${smsThreshold.value}`);
   if (adjustedValue > smsThreshold.value) {
+    console.log(`[异常检测] 设备 ${selectedDevice.value.deviceId} 的 ${type} 轴检测到严重异常！`);
+    console.log(`[异常详情] 实际值: ${adjustedValue.toFixed(6)} gal, 短信阈值: ${smsThreshold.value}, 超出: ${(adjustedValue - smsThreshold.value).toFixed(6)} gal`);
     try {
       // 发送短信警报
       await axios.post("http://localhost:3001/api/send_sms", {
@@ -326,6 +332,8 @@ const sendSMSAlert = async (value: number, type: string) => {
         console.error("错误响应:", error.response.data);
       }
     }
+  } else {
+    console.log(`[短信检查] 设备 ${selectedDevice.value.deviceId} - ${type}轴: 未超过短信阈值，正常`);
   }
 };
 
@@ -349,10 +357,10 @@ const fetchLatestData = async () => {
           !accumulatedData.value.z.times.includes(z[0][0])) {
         
         
-        console.log("新数据");
+        console.log(`[新数据] 设备 ${selectedDevice.value.deviceId} 收到新数据，时间戳: ${x[0][0]}`);
         // 检查每个轴的数据并发送相应的警报
         for (const [axis, data] of [[x[0][1], 'X'], [y[0][1], 'Y'], [z[0][1], 'Z']]) {
-          console.log("emailThreshold",emailThreshold.value);
+          console.log(`[数据检查] 设备 ${selectedDevice.value.deviceId} - ${data}轴: 原始值=${axis}, 绝对值=${Math.abs(axis as number)}, 邮件阈值=${emailThreshold.value}, 短信阈值=${smsThreshold.value}`);
           await sendEmailAlert(axis as number, data as string);
           await sendSMSAlert(axis as number, data as string);
         }
@@ -361,10 +369,14 @@ const fetchLatestData = async () => {
         appendData(accumulatedData.value.y, y[0]);
         appendData(accumulatedData.value.z, z[0]);
         drawTimeChart1(accumulatedData.value);
+      } else {
+        console.log(`[重复数据] 设备 ${selectedDevice.value.deviceId} 数据已存在，跳过处理`);
       }
+    } else {
+      console.log(`[API响应] 设备 ${selectedDevice.value.deviceId} API响应异常或无数据`);
     }
   } catch (error) {
-    console.error("获取最新数据失败：", error);
+    console.error(`[获取数据失败] 设备 ${selectedDevice.value.deviceId}:`, error);
   }
 };
 
@@ -380,6 +392,7 @@ const appendData = (axisData: any, newData: [string, number]) => {
 
 const startFetchingLatestData = () => {
   if (fetchInterval) clearInterval(fetchInterval);
+  console.log(`[定时任务] 开始为设备 ${selectedDevice.value.deviceId} 设置定时数据获取，每60秒检查一次`);
   fetchInterval = setInterval(fetchLatestData, 60000);
 };
 
@@ -498,15 +511,18 @@ const deviceList = ref<Device[]>([
 ]);
 
 onMounted(async() => {
+  console.log(`[初始化] 页面加载完成，开始初始化设备 ${selectedDevice.value.deviceId}`);
   timeChart = echarts.init(document.getElementById('main'));
   amplitudeChart = echarts.init(document.getElementById('main2'));
+  console.log(`[阈值获取] 开始获取设备 ${selectedDevice.value.deviceId} 的阈值设置`);
   await getThresholds('up'); // 添加上阈值
   await getThresholds('down'); // 添加下阈值
   await getThresholds('x_offset'); // 添加偏移量
   await getThresholds('y_offset'); // 添加偏移量
   await getThresholds('z_offset'); // 添加偏移量
-  await getThresholds('message_limit'); // 添加偏移量
-  await getThresholds('email_limit'); // 添加偏移量
+  await getThresholds('message_limit'); // 添加短信阈值
+  await getThresholds('email_limit'); // 添加邮件阈值
+  console.log(`[阈值获取完成] 当前阈值 - 邮件:${emailThreshold.value}, 短信:${smsThreshold.value}`);
   console.log("devices",devices);
   console.log("selectedDevice",selectedDevice);
 })
@@ -854,7 +870,9 @@ socket1.onclose = () => {
 
 
 watch([selectedDevice, dataSource], async ([newDevice, newDataSource]) => {
+  console.log(`[设备切换] 检测到设备或数据源变化 - 设备:${newDevice?.deviceId}, 数据源:${newDataSource}`);
   if (newDevice) {
+    console.log(`[阈值重新获取] 为新设备 ${newDevice.deviceId} 重新获取阈值`);
     await getThresholds('up');
     await getThresholds('down');
     await getThresholds('x_offset');
@@ -862,8 +880,10 @@ watch([selectedDevice, dataSource], async ([newDevice, newDataSource]) => {
     await getThresholds('z_offset');
     await getThresholds('message_limit');
     await getThresholds('email_limit');
+    console.log(`[阈值更新完成] 设备 ${newDevice.deviceId} 阈值已更新`);
   }
   if (newDataSource === 'api_minute') {
+    console.log(`[数据源切换] 切换到分钟级API数据源，开始获取历史数据`);
     if (socket1) {
       socket1.close(); // 关闭 WebSocket 连接
     }
@@ -871,24 +891,28 @@ watch([selectedDevice, dataSource], async ([newDevice, newDataSource]) => {
     await loadData('minute', 60);
     await startFetchingLatestData();
   } else if (newDataSource === 'api_day') {
+    console.log(`[数据源切换] 切换到天级API数据源`);
     if (socket1) {
       socket1.close(); // 关闭 WebSocket 连接
     }
     // 使用 API 获取天级别数据
     await loadData('daily', 12);
   } else if (newDataSource === 'api_hour') {
+    console.log(`[数据源切换] 切换到小时级API数据源`);
     if (socket1) {
       socket1.close(); // 关闭 WebSocket 连接
     }
     // 使用 API 获取小时级别数据
     await loadData('hourly', 24);
   } else if (newDataSource === 'api_month') {
+    console.log(`[数据源切换] 切换到月级API数据源`);
     if (socket1) {
       socket1.close(); // 关闭 WebSocket 连接
     }
     // 使用 API 获取月级别数据
     await loadData('monthly', 12);
   } else if (newDataSource === 'api_year') {
+    console.log(`[数据源切换] 切换到年级API数据源`);
     if (socket1) {
       socket1.close(); // 关闭 WebSocket 连接
     }
@@ -896,6 +920,7 @@ watch([selectedDevice, dataSource], async ([newDevice, newDataSource]) => {
     await loadData('yearly', 5);
   }
     // 使用 WebSocket 获取数据
+    console.log(`[数据源切换] 切换到WebSocket数据源`);
     request2.data = newDevice.deviceId;
     socket1.close();
     socket1 = new WebSocket(websocketUrl);

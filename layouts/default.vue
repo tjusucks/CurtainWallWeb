@@ -98,26 +98,6 @@ const userPermissions = ref({
 //   }
 // };
 
-const goto3DModel = () => {
-  // router.push("http://localhost:5173")
-  // window.open("http://localhost:5173", "_blank");
-  window.location.href = "http://120.46.136.85:5173";
-};
-
-const gotoGlassFlatness = () => {
-  // router.push("http://localhost:5173")
-  // window.open("http://localhost:5173", "_blank");
-  window.location.href = "http://111.231.168.12:3000";
-};
-
-const gotoGlassToughness = () => {
-  // router.push("http://localhost:5173")
-  // window.open("http://localhost:5173", "_blank");
-  window.location.href = "http://111.231.168.12:8999";
-};
-const gotoGlassShock = () => {
-  window.location.href = "/vibration/mainpage";
-};
 
 const links = reactive([
   {

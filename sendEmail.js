@@ -17,7 +17,7 @@ export default async function sendEmail(alertMessage) {
   // 邮件的内容
   let mailOptions = {
     from: '"Smart Care" <smart_care_tongji@163.com>', // 发送者信息
-    to: '206459646@qq.com',                                               // 接收者邮箱
+    to: '2351041@tongji.educ.cn',                                               // 接收者邮箱
     subject:'警报通知',                                          // 邮件主题
     text:'alertMessage',                
   };

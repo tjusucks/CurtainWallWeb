@@ -378,6 +378,17 @@ const filteredDevices = computed(() => {
   )
 })
 
+// 观察设备与筛选结果，输出诊断日志
+watch([devices, selectedCategory], () => {
+  try {
+    console.log('[诊断] 设备原始数量:', devices.value.length, '当前地点:', selectedCategory.value)
+    const sample = filteredDevices.value.slice(0, 5).map((d: { device_name: string }) => d.device_name)
+    console.log('[诊断] 过滤后设备数量:', filteredDevices.value.length, '示例:', sample)
+  } catch (e) {
+    console.warn('[诊断] 统计过滤设备时出错:', e)
+  }
+}, { immediate: true })
+
 // 设备状态
 const deviceStatus = reactive({
   online: true,
@@ -444,14 +455,54 @@ const chartOptions = ref<{ [key: string]: any }>({})
 const getAlarmType = (item: any): 'alarm' | 'warning' => {
   // 优先使用API返回的type字段
   if (item.type) {
-    return item.type === 'alarm' ? 'alarm' : 'warning'
+    const alarmType = item.type === 'alarm' ? 'alarm' : 'warning'
+    console.log(`[预警调试] 使用API type字段: ${item.type} -> ${alarmType}, 数据: ${item.data}, 方向: ${item.direction}`)
+    return alarmType
   }
   
-  // 兼容旧逻辑：如果没有type字段，根据数值判断
+  // 根据方向获取对应的阈值
   const dataValue = Math.abs(item.data)
-  const messageLimit = thresholds.message_limit
+  let threshold = 0
   
-  return dataValue >= messageLimit ? 'alarm' : 'warning'
+  // 根据direction确定要比较的阈值
+  switch (item.direction) {
+    case 'x_above_max':
+    case 'x_below_min':
+      threshold = thresholds.x_limit
+      break
+    case 'y_above_max':
+    case 'y_below_min':
+      threshold = thresholds.y_limit
+      break
+    case 'z_above_max':
+    case 'z_below_min':
+      threshold = thresholds.z_limit
+      break
+    case 'ch1_above_max':
+    case 'ch1_below_min':
+      threshold = thresholds.ch1_limit
+      break
+    case 'ch2_above_max':
+    case 'ch2_below_min':
+      threshold = thresholds.ch2_limit
+      break
+    default:
+      threshold = thresholds.message_limit // 默认使用短信阈值
+  }
+  
+  // 分级判断：如果超过email_limit但不超过message_limit为warning，超过message_limit为alarm
+  let alarmType: 'alarm' | 'warning'
+  if (dataValue >= thresholds.message_limit) {
+    alarmType = 'alarm'
+  } else if (dataValue >= thresholds.email_limit) {
+    alarmType = 'warning'
+  } else {
+    alarmType = 'warning' // 默认warning
+  }
+  
+  console.log(`[预警调试] 异常检测 - 数据值: ${item.data}, 绝对值: ${dataValue}, 方向: ${item.direction}, 对应阈值: ${threshold}, email阈值: ${thresholds.email_limit}, 短信阈值: ${thresholds.message_limit}, 判断结果: ${alarmType}`)
+  
+  return alarmType
 }
 
 // 判断是否为警告级别（alarm）
@@ -494,6 +545,9 @@ const initializeRealtimeCharts = () => {
       const chartY = document.getElementById('realtime-chart-y')
       const chartZ = document.getElementById('realtime-chart-z')
       const chartAll = document.getElementById('realtime-chart-all')
+      console.log('[诊断] 实时容器存在性(accelerometer):', {
+        x: !!chartX, y: !!chartY, z: !!chartZ, all: !!chartAll
+      })
       
       if (chartX) realtimeCharts.value['x'] = echarts.init(chartX)
       if (chartY) realtimeCharts.value['y'] = echarts.init(chartY)
@@ -504,6 +558,9 @@ const initializeRealtimeCharts = () => {
       const chartCh1 = document.getElementById('realtime-chart-ch1')
       const chartCh2 = document.getElementById('realtime-chart-ch2')
       const chartStrainAll = document.getElementById('realtime-chart-strain-all')
+      console.log('[诊断] 实时容器存在性(strainGauge):', {
+        ch1: !!chartCh1, ch2: !!chartCh2, all: !!chartStrainAll
+      })
       
       if (chartCh1) realtimeCharts.value['ch1'] = echarts.init(chartCh1)
       if (chartCh2) realtimeCharts.value['ch2'] = echarts.init(chartCh2)
@@ -533,6 +590,9 @@ const initializeMonthlyCharts = () => {
       const chartY = document.getElementById('monthly-chart-y')
       const chartZ = document.getElementById('monthly-chart-z')
       const chartAll = document.getElementById('monthly-chart-all')
+      console.log('[诊断] 月级容器存在性(accelerometer):', {
+        x: !!chartX, y: !!chartY, z: !!chartZ, all: !!chartAll
+      })
       
       if (chartX) monthlyCharts.value['x'] = echarts.init(chartX)
       if (chartY) monthlyCharts.value['y'] = echarts.init(chartY)
@@ -543,6 +603,9 @@ const initializeMonthlyCharts = () => {
       const chartCh1 = document.getElementById('monthly-chart-ch1')
       const chartCh2 = document.getElementById('monthly-chart-ch2')
       const chartStrainAll = document.getElementById('monthly-chart-strain-all')
+      console.log('[诊断] 月级容器存在性(strainGauge):', {
+        ch1: !!chartCh1, ch2: !!chartCh2, all: !!chartStrainAll
+      })
       
       if (chartCh1) monthlyCharts.value['ch1'] = echarts.init(chartCh1)
       if (chartCh2) monthlyCharts.value['ch2'] = echarts.init(chartCh2)
@@ -595,7 +658,10 @@ const switchMonthlyTab = (tabKey: string) => {
 
 // 绘制特定实时图表
 const drawSpecificRealtimeChart = (chartType: string) => {
-  if (!currentRealtimeData.value) return
+  if (!currentRealtimeData.value) {
+    console.warn('[诊断] 绘制实时图表早退: currentRealtimeData 为空, chartType=', chartType)
+    return
+  }
   
   if (currentDeviceInfo.value.type === 'accelerometer') {
     drawRealtimeAccelerometerChart(chartType)
@@ -606,7 +672,10 @@ const drawSpecificRealtimeChart = (chartType: string) => {
 
 // 绘制特定月级图表
 const drawSpecificMonthlyChart = (chartType: string) => {
-  if (!currentMonthlyData.value) return
+  if (!currentMonthlyData.value) {
+    console.warn('[诊断] 绘制月级图表早退: currentMonthlyData 为空, chartType=', chartType)
+    return
+  }
   
   if (currentDeviceInfo.value.type === 'accelerometer') {
     drawMonthlyAccelerometerChart(chartType)
@@ -1125,6 +1194,10 @@ const preprocessChartOptions = (data: any, isRealtime: boolean = true) => {
   
   const deviceType = currentDeviceInfo.value.type
   const prefix = isRealtime ? 'realtime' : 'monthly'
+  try {
+    const keys = Object.keys(data)
+    console.log('[诊断] 预处理图表配置: deviceType=', deviceType, 'isRealtime=', isRealtime, 'data keys=', keys)
+  } catch {}
   
   if (deviceType === 'accelerometer') {
     const xAxisData = data.x?.map((item: [string, number]) => item[0]) || []
@@ -1458,10 +1531,16 @@ const fetchDevices = async () => {
   try {
     const response = await axios.get(`${API_BASE_URL}/data/get_new_device`)
     if (response.data.status === 'success') {
+      console.log('[诊断] 获取设备列表成功, 原始条数:', Array.isArray(response.data.data) ? response.data.data.length : 'N/A')
+      try {
+        const names = (response.data.data || []).slice(0, 10).map((d: any) => d.device_name)
+        console.log('[诊断] 设备名称样本(前10):', names)
+      } catch {}
       devices.value = response.data.data.map((device: { device_name: string }) => ({
         device_name: device.device_name,
         category: selectedCategory.value
       }))
+      console.log('[诊断] 设备入库后条数:', devices.value.length)
     } else {
       ElMessage.error('获取设备列表失败')
     }
@@ -1484,6 +1563,7 @@ const fetchThresholds = async () => {
         device_type: deviceType
       }
     })
+    console.log('[诊断] 获取阈值 /data/get_threshold_or_offset response=', response.data)
     
     if (response.data.status === 'success') {
       const data = response.data.data
@@ -1492,6 +1572,7 @@ const fetchThresholds = async () => {
       Object.keys(thresholds).forEach(key => {
         thresholds[key as keyof typeof thresholds] = 0
       })
+      console.log('[诊断] 重置阈值:', JSON.stringify(thresholds))
       
       // 根据设备类型设置对应阈值
       if (deviceType === 'accelerometer') {
@@ -1501,6 +1582,10 @@ const fetchThresholds = async () => {
       } else if (deviceType === 'strainGauge') {
         thresholds.ch1_limit = data.ch1_limit || 0
         thresholds.ch2_limit = data.ch2_limit || 0
+        }
+      else {
+        console.warn('未知设备类型, 无法设置特定阈值:', deviceType)
+        
       }
       
       // 设置通用告警阈值
@@ -1517,12 +1602,12 @@ const fetchRealtimeData = async () => {
   if (!selectedDevice.value) return
   
   try {
-    const response = await axios.get(`${API_BASE_URL}/data/get_second_data`, {
-      params: {
-        device_name: selectedDevice.value,
-        num: 60000*12 // 获取最近5分钟的秒级数据
-      }
-    })
+    const params = {
+      device_name: selectedDevice.value,
+      num: 60000*12 // 获取最近5分钟的秒级数据(当前表达式值为: ' + (60000*12) + ')
+    }
+    console.log('[诊断] 请求秒级数据 /data/get_second_data params=', params)
+    const response = await axios.get(`${API_BASE_URL}/data/get_second_data`, { params })
     
     if (response.data.status === 'success' && response.data.data) {
       currentRealtimeData.value = response.data.data
@@ -1530,6 +1615,16 @@ const fetchRealtimeData = async () => {
       deviceStatus.online = true
       
       console.log('获取实时数据成功:', currentRealtimeData.value)
+      try {
+        const keys = Object.keys(currentRealtimeData.value || {})
+        console.log('[诊断] 实时数据包含键:', keys)
+        keys.forEach(k => {
+          const arr = (currentRealtimeData.value as any)[k]
+          if (Array.isArray(arr)) {
+            console.log(`[诊断] ${k} 点数:`, arr.length)
+          }
+        })
+      } catch {}
       
       // 预处理实时图表配置
       preprocessChartOptions(response.data.data, true)
@@ -1552,17 +1647,27 @@ const fetchMonthlyData = async () => {
   if (!selectedDevice.value) return
   
   try {
-    const response = await axios.get(`${API_BASE_URL}/data/get_monthly_data`, {
-      params: {
-        device_name: selectedDevice.value,
-        num: 12 // 获取12个月的数据
-      }
-    })
+    const params = {
+      device_name: selectedDevice.value,
+      num: 12 // 获取12个月的数据
+    }
+    console.log('[诊断] 请求月级数据 /data/get_monthly_data params=', params)
+    const response = await axios.get(`${API_BASE_URL}/data/get_monthly_data`, { params })
     
     if (response.data.status === 'success' && response.data.data) {
       currentMonthlyData.value = response.data.data
       
       console.log('获取月级数据成功:', currentMonthlyData.value)
+      try {
+        const keys = Object.keys(currentMonthlyData.value || {})
+        console.log('[诊断] 月级数据包含键:', keys)
+        keys.forEach(k => {
+          const arr = (currentMonthlyData.value as any)[k]
+          if (Array.isArray(arr)) {
+            console.log(`[诊断] 月级 ${k} 点数:`, arr.length)
+          }
+        })
+      } catch {}
       
       // 预处理月级图表配置
       preprocessChartOptions(response.data.data, false)
@@ -1603,21 +1708,19 @@ const fetchAbnormalData = async () => {
     const params: Record<string, string> = {
       device: selectedDevice.value,
       start_time: formatDate(startTime),
-      end_time: formatDate(endTime)
+      end_time: formatDate(endTime),
+      direction: abnormalFilter.direction
     }
     
-    if (abnormalFilter.direction !== 'all') {
-      params.direction = abnormalFilter.direction
-    }
-    
-    const response = await axios.get(`${API_BASE_URL}/data/get_abnormal_data_with_type`, {
-      params
-    })
+    console.log('[诊断] 请求异常数据 /data/get_abnormal_data_with_type params=', params)
+    const response = await axios.get(`${API_BASE_URL}/data/get_abnormal_data_with_type`, { params })
     
     if (response.data.status === 'success' && Array.isArray(response.data.data)) {
       abnormalData.value = response.data.data.slice(0, 20) // 只显示最近20条
+      console.log('[诊断] 异常数据返回条数:', response.data.data.length, '展示条数:', abnormalData.value.length)
     } else {
       abnormalData.value = []
+      console.log('[诊断] 异常数据为空或格式不符')
     }
   } catch (error) {
     console.error('获取异常数据失败:', error)
@@ -1641,14 +1744,17 @@ const onDeviceChange = async () => {
   // 重置标签页为all
   activeRealtimeTab.value = 'all'
   activeMonthlyTab.value = 'all'
+  console.log('[诊断] 已重置标签页为 all, all')
   
   // 清空图表配置缓存
   chartOptions.value = {}
+  console.log('[诊断] 已清空 chartOptions 缓存')
   
   // 等待设备类型计算完成后重新初始化图表
   await nextTick()
   initializeRealtimeCharts()
   initializeMonthlyCharts()
+  console.log('[诊断] 重新初始化图表完成, 当前设备类型:', currentDeviceInfo.value.type)
   
   // 重新获取数据
   await fetchThresholds()
@@ -1658,6 +1764,7 @@ const onDeviceChange = async () => {
   
   // 重新开始轮询
   startRealtimePolling()
+  console.log('[诊断] 已重新开始实时轮询')
 }
 
 // 月份范围改变处理
@@ -1713,6 +1820,7 @@ onMounted(() => {
   
   // 监听窗口大小变化
   window.addEventListener('resize', handleResize)
+  console.log('[诊断] 挂载完成: 初始选中地点=', selectedCategory.value, '初始设备=', selectedDevice.value, '初始设备类型=', currentDeviceInfo.value.type)
 })
 
 // 组件卸载
