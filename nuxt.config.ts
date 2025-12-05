@@ -24,48 +24,48 @@ export default defineNuxtConfig({
   // 不开启服务端渲染
   ssr: false,
 
-  routeRules: {
-    '/api/**': {
-      proxy: 'http://110.42.214.164:8008/api/**'
-    },
-    '/predict/**': {
-      proxy: 'http://110.42.214.164:8007/predict/**'
-    },
-    '/history/**': {
-      proxy: 'http://110.42.214.164:8007/history/**'
-    },
-    '/oss/**': {
-      proxy: 'http://110.42.214.164:9000/oss/**'
-    },
-    '/crackdetection/**': {
-      proxy: 'http://110.42.214.164:8001/crackdetection/**'
-    }
-  },
-  nitro: {
-    devProxy: {
-      '/api': {
-        target: 'http://110.42.214.164:8008',
-        changeOrigin: true,
-      },
-      '/predict': {
-        target: 'http://110.42.214.164:8007',
-        changeOrigin: true
-      },
-      '/history': {
-        target: 'http://110.42.214.164:8007',
-        changeOrigin: true
-      },
-      '/oss': {
-        target: 'http://110.42.214.164:9000',
-        changeOrigin: true,
-      },
-      '/crackdetection': {
-        target: 'http://110.42.214.164:8001',
-        //target: 'http://127.0.0.1:8080',
-        changeOrigin: true,
-      }
-    }
-  },
+  // routeRules: {
+  //   '/api/**': {
+  //     proxy: 'http://110.42.214.164:8008/api/**'
+  //   },
+  //   '/predict/**': {
+  //     proxy: 'http://110.42.214.164:8007/predict/**'
+  //   },
+  //   '/history/**': {
+  //     proxy: 'http://110.42.214.164:8007/history/**'
+  //   },
+  //   '/oss/**': {
+  //     proxy: 'http://110.42.214.164:9000/oss/**'
+  //   },
+  //   '/crackdetection/**': {
+  //     proxy: 'http://110.42.214.164:8001/crackdetection/**'
+  //   }
+  // },
+  // nitro: {
+  //   devProxy: {
+  //     '/api': {
+  //       target: 'http://110.42.214.164:8008',
+  //       changeOrigin: true,
+  //     },
+  //     '/predict': {
+  //       target: 'http://110.42.214.164:8007',
+  //       changeOrigin: true
+  //     },
+  //     '/history': {
+  //       target: 'http://110.42.214.164:8007',
+  //       changeOrigin: true
+  //     },
+  //     '/oss': {
+  //       target: 'http://110.42.214.164:9000',
+  //       changeOrigin: true,
+  //     },
+  //     '/crackdetection': {
+  //       target: 'http://110.42.214.164:8001',
+  //       //target: 'http://127.0.0.1:8080',
+  //       changeOrigin: true,
+  //     }
+  //   }
+  // },
 
   // 添加路由配置
   app: {
