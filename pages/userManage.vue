@@ -17,7 +17,7 @@
         border
         :data="paginatedList"
         style="width: 100%"
-        :table-layout="auto"
+        table-layout="auto"
       >
         <el-table-column prop="email" label="Email"></el-table-column>
         <el-table-column label="转让管理员">
@@ -231,20 +231,25 @@ const getAllPermission = async () => {
     });
 
     if (response.status === 200) {
-      const data = response.data.data;
-      itemList.value = Object.entries(data).map(([email, permissions]) => ({
-        email,
-        ...permissions,
-      }));
-      currentPage.value = 1; // 搜索后重置页码
+      const data = response.data?.data;
+      if (data) {
+        itemList.value = Object.entries(data).map(([email, permissions]) => ({
+          email,
+          ...permissions,
+        }));
+        currentPage.value = 1; // 搜索后重置页码
+      } else {
+        console.warn("后端返回数据为空或格式不正确:", response.data);
+        itemList.value = [];
+      }
     } else {
       ElMessage.error("获取权限失败");
     }
   } catch (error) {
+    console.error("详细错误信息:", error);
     const msg = axios.isAxiosError(error)
       ? error.response?.data?.message || error.message
-      : "未预料到的错误";
-    console.error("Error:", msg);
+      : `未预料到的错误: ${error.message}`;
     ElMessage.error(msg);
   }
 };
