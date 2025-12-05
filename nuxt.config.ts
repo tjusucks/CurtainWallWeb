@@ -42,29 +42,29 @@ export default defineNuxtConfig({
     }
   },
   nitro: {
-    // devProxy: {
-    //   '/api': {
-    //     target: 'http://110.42.214.164:8008',
-    //     changeOrigin: true,
-    //   },
-    //   '/predict': {
-    //     target: 'http://110.42.214.164:8007',
-    //     changeOrigin: true
-    //   },
-    //   '/history': {
-    //     target: 'http://110.42.214.164:8007',
-    //     changeOrigin: true
-    //   },
-    //   '/oss': {
-    //     target: 'http://110.42.214.164:9000',
-    //     changeOrigin: true,
-    //   },
-    //   '/crackdetection': {
-    //     target: 'http://110.42.214.164:8001',
-    //     //target: 'http://127.0.0.1:8080',
-    //     changeOrigin: true,
-    //   }
-    // }
+    devProxy: {
+      '/api': {
+        target: 'http://110.42.214.164:8008',
+        changeOrigin: true,
+      },
+      '/predict': {
+        target: 'http://110.42.214.164:8007',
+        changeOrigin: true
+      },
+      '/history': {
+        target: 'http://110.42.214.164:8007',
+        changeOrigin: true
+      },
+      '/oss': {
+        target: 'http://110.42.214.164:9000',
+        changeOrigin: true,
+      },
+      '/crackdetection': {
+        target: 'http://110.42.214.164:8001',
+        //target: 'http://127.0.0.1:8080',
+        changeOrigin: true,
+      }
+    }
   },
 
   // 添加路由配置
