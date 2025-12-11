@@ -7,15 +7,15 @@ export default defineEventHandler(async (event) => {
   // 配置映射
   const config = {
     '/api': {
-      target: 'http://110.42.214.164:8008',
+      target: 'http://8.153.161.229:8008',
       rewrite: (p: string) => p.replace(/^\/api/, '') // 去掉 /api 前缀
     },
     '/predict': {
-      target: 'http://110.42.214.164:8007',
+      target: 'http://8.153.161.229:8007',
       rewrite: (p: string) => p.replace(/^\/predict/, '') // 去掉 /predict 前缀
     },
     '/history': {
-      target: 'http://110.42.214.164:8007',
+      target: 'http://8.153.161.229:8007',
       rewrite: (p: string) => p.replace(/^\/history/, '') // 去掉 /history 前缀
     },
     '/oss': {

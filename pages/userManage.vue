@@ -52,14 +52,6 @@
             ></el-switch>
           </template>
         </el-table-column>
-        <!-- <el-table-column label="玻璃自爆检测权限" prop="access_system_d">
-          <template #default="{ row }">
-            <el-switch
-              v-model="row.access_system_d"
-              @change="() => handleSwitchChange(row, 'access_system_d','table')"
-            ></el-switch>
-          </template>
-        </el-table-column> -->
         <el-table-column label="震动数据检测权限" prop="access_system_v">
           <template #default="{ row }">
             <el-switch
@@ -68,38 +60,6 @@
             ></el-switch>
           </template>
         </el-table-column>
-<!--        <el-table-column label="幕墙材质分割权限" prop="access_system_f">-->
-<!--          <template #default="{ row }">-->
-<!--            <el-switch-->
-<!--              v-model="row.access_system_f"-->
-<!--              @change="() => handleSwitchChange(row, 'access_system_f','table')"-->
-<!--            ></el-switch>-->
-<!--          </template>-->
-<!--        </el-table-column>-->
-        <!-- <el-table-column label="玻璃平整度权限" prop="access_system_g">
-          <template #default="{ row }">
-            <el-switch
-              v-model="row.access_system_g"
-              @change="() => handleSwitchChange(row, 'access_system_g','table')"
-            ></el-switch>
-          </template>
-        </el-table-column> -->
-        <!-- <el-table-column label="幕墙韧性评估权限" prop="access_system_h">
-          <template #default="{ row }">
-            <el-switch
-              v-model="row.access_system_h"
-              @change="() => handleSwitchChange(row, 'access_system_h','table')"
-            ></el-switch>
-          </template>
-        </el-table-column> -->
-        <!-- <el-table-column label="金属锈蚀检测权限" prop="access_system_z">
-          <template #default="{ row }">
-            <el-switch
-              v-model="row.access_system_z"
-              @change="() => handleSwitchChange(row, 'access_system_z','table')"
-            ></el-switch>
-          </template>
-        </el-table-column> -->
       </el-table>
 
       <!-- 分页组件 -->

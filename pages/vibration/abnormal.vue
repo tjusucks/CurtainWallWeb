@@ -165,7 +165,7 @@ import { ElMessage } from 'element-plus'
 const router = useRouter()
 
 // API服务器配置 - 修改为只使用远程服务器
-const apiServerUrl = 'http://110.42.214.164:8009' // 远程服务器地址
+const apiServerUrl = 'http://8.153.161.229:8009' // 远程服务器地址
 
 // 获取API服务器的基础URL
 const getApiBaseUrl = () => {

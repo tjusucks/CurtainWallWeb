@@ -294,7 +294,7 @@ import { ArrowRight } from '@element-plus/icons-vue'
 import axios from 'axios'
 
 const router = useRouter()
-const API_BASE_URL = 'http://110.42.214.164:8009'
+const API_BASE_URL = 'http://8.153.161.229:8009'
 
 const activeRealtimeTab = ref('all')
 const activeMonthlyTab = ref('all')
