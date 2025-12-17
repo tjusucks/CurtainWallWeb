@@ -330,7 +330,7 @@ import {
 } from '@element-plus/icons-vue'
 import StatusCard from '../components/StatusCard.vue'
 import MiniChart from '../components/MiniChart.vue'
-import ServiceChart from '..ColumnTypeChart.vue'
+import ServiceChart from '../components/ColumnTypeChart.vue'
 import { formatMemory, formatDiskSpace, formatNetwork, formatTime } from '../utils/format'
 
 const router = useRouter()
@@ -888,7 +888,7 @@ onBeforeUnmount(() => {
         grid-template-columns: 1fr 1fr;
         gap: 16px;
         
-        .metric-chart {
+    .metric-chart {
           h4 {
             margin: 0 0 8px 0;
             font-size: 14px;

@@ -167,22 +167,22 @@ const handleButtonClick = async () => {
   width: 82%;
 }
 
-::v-deep .is-vertical .el-step__head {
+:deep(.is-vertical .el-step__head) {
   order: 2;
   margin-left: 5px;
 }
 
-::v-deep .is-vertical .el-step__main {
+:deep(.is-vertical .el-step__main) {
   order: 1;
   text-align: right;
   margin-bottom: 10px;
 }
 
-::v-deep .el-step.is-vertical .el-step__main {
+:deep(.el-step.is-vertical .el-step__main) {
   margin-left: 0;
 }
 
-::v-deep .el-step.is-vertical:not(:last-child) .el-step__line {
+:deep(.el-step.is-vertical:not(:last-child) .el-step__line) {
   top: 40px; /* 调整线条开始位置 */
   bottom: 30px; /* 调整线条结束位置 */
   left: -45px; /* 调整线条水平位置 */

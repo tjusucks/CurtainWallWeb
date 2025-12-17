@@ -8,7 +8,7 @@
     <div class="outlayer">
       <!-- 参数面板 -->
       <div class="parameter-panel">
-        <UForm class="parameter-form">
+        <UForm class="parameter-form" :state="{}">
 
           <div class="parameter-group">
             <h2 class="green-underline-title">台阵选择</h2>
@@ -163,14 +163,7 @@
       </div>
     </div>
 
-    <!-- 消息提示 -->
-    <el-message
-      v-if="message.show"
-      :type="message.type"
-      :message="message.content"
-      :duration="message.duration"
-      :onClose="message.onClose"
-    />
+    <!-- 消息提示通过 ElMessage 函数显示，不需要模板 -->
   </div>
 </template>
 
@@ -452,8 +445,29 @@ export default {
       }
     },
 
+    async fetchLimits() {
+      try {
+        const response = await axios.get(`${API_BASE_URL}/data/get_threshold_or_offset`, {
+          params: {
+            device_name: this.selectedDevice.value,
+            device_type: this.selectedDevice.type
+          }
+        });
+
+        if (response.data.status === 'success') {
+          const data = response.data.data;
+          this.emailLimitSetting = data.email_limit || 25;
+          this.messageLimitSetting = data.message_limit || 35;
+        } else {
+          this.showMessage('error', '获取限值设置失败');
+        }
+      } catch (error) {
+        console.error('获取限值设置失败:', error);
+        this.showMessage('error', '获取限值设置失败');
+      }
+    },
+
     updateThresholds(type, value) {
-      const numericValue = parseFloat(value); // 将输入值转换为数字
       console.log(numericValue);
       if (type === 'xThreshold') {
         this.yThreshold = Math.abs((numericValue * (this.ratio_y_x)).toFixed(2));
@@ -501,6 +515,8 @@ export default {
       this.ratio_z_y = ratios.ratio_z_y;
       this.ratio_ch2_ch1 = ratios.ratio_ch2_ch1;
     });
+    // 获取限值设置
+    this.fetchLimits();
   },
 };
 </script>
