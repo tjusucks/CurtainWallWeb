@@ -180,7 +180,7 @@ import {useRouter} from "vue-router";
 import { ElMessage } from 'element-plus';
 import axios from 'axios';
 
-const API_BASE_URL = 'http://110.42.214.164:8009';
+const API_BASE_URL = 'http://8.153.161.229:8009';
 const backToMain = () => {
   router.push("/");
 };

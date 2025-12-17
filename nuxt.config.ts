@@ -27,15 +27,15 @@ export default defineNuxtConfig({
   nitro: {
     devProxy: {
       '/api': {
-        target: 'http://110.42.214.164:8008',
+        target: 'http://8.153.161.229:8008',
         changeOrigin: true,
       },
       '/predict': {
-        target: 'http://110.42.214.164:8007',
+        target: 'http://8.153.161.229:8007',
         changeOrigin: true
       },
       '/history': {
-        target: 'http://110.42.214.164:8007',
+        target: 'http://8.153.161.229:8007',
         changeOrigin: true
       },
       '/oss': {
