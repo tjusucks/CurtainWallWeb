@@ -505,7 +505,7 @@ const validateImageUrl = (url: string) => {
       return url;
     }
     // 如果是相对路径，添加基础 URL
-    return `http://110.42.214.164:9000${url}`;
+    return `http://8.159.143.133:9000${url}`;
   } catch (error) {
     console.error('处理图片 URL 失败:', error);
     return '';

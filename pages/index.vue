@@ -97,26 +97,12 @@ const modulesLine1 = reactive([
     icon: "i-simple-icons-affinitypublisher",
   },
 
-  // {
-  //   title: "3D建筑模型",
-  //   description: "用于查看3D建筑模型，可视化反映建筑问题",
-  //   target_address: "/3DModel",
-  //   icon: "i-simple-icons-googlehome",
-  //   permissionKey: "access_system_a",
-  // },
 
 
 
 ]);
 
 const modulesLine2 = reactive([
-  // {
-  //   title: "幕墙材质分割",
-  //   description: "给定一张建筑幕墙图片，分割出其中的各种材质",
-  //   target_address: "/segment",
-  //   permissionKey: "access_system_f",
-  //   icon: "i-simple-icons-homeassistantcommunitystore",
-  // },
   {
     title: "幕墙性能评估",
     description: "用于幕墙韧性多维数据分析评估和预警",
@@ -145,21 +131,6 @@ const modulesLine3 = reactive([
     disabled: true,
   },
 
-  // {
-  //   title: "幕墙韧性评估",
-  //   description: "用于查看评估幕墙韧性",
-  //   target_address: "/resilienceAssessment/dataUpload",
-  //   permissionKey: "access_system_h",
-  //   icon: "i-simple-icons-testcafe",
-  // },
-
-  // {
-  //   title: "金属锈蚀检测",
-  //   description: "用于检测金属锈蚀",
-  //   target_address: "/corrosiondetection/detect",
-  //   permissionKey: "access_system_z",
-  //   icon: "i-simple-icons-amazons3",
-  // },
 ]);
 const loadingAuth = ref(true); // 新增loading状态
 

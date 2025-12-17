@@ -27,7 +27,7 @@ export default defineNuxtConfig({
   nitro: {
     devProxy: {
       '/api': {
-        target: 'http://8.153.161.229:8008',
+        target: 'http://8.159.143.133:8008',
         changeOrigin: true,
       },
       '/predict': {
@@ -39,7 +39,7 @@ export default defineNuxtConfig({
         changeOrigin: true
       },
       '/oss': {
-        target: 'http://110.42.214.164:9000',
+        target: 'http://8.159.143.133:9000',
         changeOrigin: true,
       },
       '/crackdetection': {

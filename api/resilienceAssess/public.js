@@ -4,7 +4,7 @@ import store from "~/store/index.js"
 
 import axios from 'axios';
 
-const BASE_URL = 'http://110.42.214.164:8005';
+const BASE_URL = 'http://8.153.161.229:8005';
 
 export const fetchBatchData = async (batch) => {
   try {
