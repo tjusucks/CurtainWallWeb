@@ -73,51 +73,7 @@ const userPermissions = ref({
   access_system_z: false,
 });
 
-// const checkPressmission = async () => {
-//   const dataToSend = {
-//     ["admin"]: {
-//       // 使用动态键名设置邮箱地址
-//       ["is_superuser"]: true, // 设置对应权限的新值
-//     },
-//   };
-//   try {
-//     const response = (await $fetch("/api/account/super/updatePermission", {
-//       method: "POST",
-//       headers: {
-//         Authorization: `Bearer ${localStorage.getItem("authToken")}`,
-//       },
-//       body: dataToSend,
-//     })) as any;
-//     if (response.status == 403 || response.status == 401) {
-//       ElMessage.error("您没有管理员权限");
-//     } else {
-//       router.push("/userManage");
-//     }
-//   } catch (error) {
-//     ElMessage.error("权限获取错误");
-//   }
-// };
 
-const goto3DModel = () => {
-  // router.push("http://localhost:5173")
-  // window.open("http://localhost:5173", "_blank");
-  window.location.href = "http://120.46.136.85:5173";
-};
-
-const gotoGlassFlatness = () => {
-  // router.push("http://localhost:5173")
-  // window.open("http://localhost:5173", "_blank");
-  window.location.href = "http://111.231.168.12:3000";
-};
-
-const gotoGlassToughness = () => {
-  // router.push("http://localhost:5173")
-  // window.open("http://localhost:5173", "_blank");
-  window.location.href = "http://111.231.168.12:8999";
-};
-const gotoGlassShock = () => {
-  window.location.href = "/vibration/mainpage";
-};
 
 const links = reactive([
   {
@@ -171,7 +127,6 @@ const links = reactive([
     ],
     tooltip: {
       text: "震动数据检测",
-      // shortcuts: ["G", "H"],
     },
   },
   {
@@ -179,7 +134,6 @@ const links = reactive([
     label: "石材裂缝检测",
     icon: "i-simple-icons-affinitypublisher",
     to: "/crackdetect",
-    //to: "http://1.92.72.113:5050",
     defaultOpen: false,
     children: [
       {
@@ -295,23 +249,11 @@ const links = reactive([
     },
   },
 
-  // {
-  //   id: "3DBuildingModel",
-  //   label: "3D建筑模型",
-  //   to: "/3DModel",
-  //   icon: "i-simple-icons-googlehome",
-  //   tooltip: {
-  //     text: "3D建筑模型",
-  //   },
-  //   //click: goto3DModel,
-  // },
-
 
   {
     id: "stoneDirty",
     label: "石材污渍检测",
     to: "/stonedirty/mainpage",
-    // to: "/userManage",
     icon: "i-heroicons-fire",
     tooltip: {
       text: "石材污渍检测",
@@ -330,144 +272,6 @@ const links = reactive([
     ],
 
   },
-  // {
-  //   id: "corrosiondetection",
-  //   label: "金属锈蚀检测",
-  //   //icon: "i-amazon-s3",
-  //   icon: "i-simple-icons-amazons3",
-  //   defaultOpen: false,
-  //   children: [
-  //     {
-  //       label: "上传图片",
-  //       to: "/corrosiondetection/detect",
-  //       exact: true,
-  //     },
-  //   ],
-
-  // },
-
-
-  // {
-  //   id: "segment",
-  //   label: "幕墙材质分割",
-  //   icon: "i-simple-icons-homeassistantcommunitystore",
-  //   to: "/segment",
-  //   defaultOpen: false,
-  //   children: [
-  //     {
-  //       label: "幕墙分割识别",
-  //       to: "/segment",
-  //       exact: true,
-  //     },
-  //     {
-  //       label: "查看历史记录",
-  //       to: "/segment/history",
-  //     },
-  //
-  //   ],
-  // },
-  // {
-  //   id: "explosion",
-  //   label: "玻璃自爆检测",
-  //   to: "/spallingDetection",
-  //   icon: "i-material-symbols-sound-detection-glass-break-sharp",
-  //   defaultOpen: false,
-  //   tooltip: {
-  //     text: "玻璃自爆检测",
-  //   },
-  //   children: [
-  //     {
-  //       label: "玻璃自爆检测",
-  //       to: "/spallingDetection",
-  //       exact: true,
-  //     },
-  //     {
-  //       label: "查看历史记录",
-  //       to: "/spallingDetection/history",
-  //     },
-  //   ],
-  // },
-  // {
-  //   id: "glassFlatness",
-  //   label: "玻璃平整度检测",
-  //   to: "/smoothnessDetection",
-  //   icon: "i-simple-icons-edgeimpulse",
-  //   defaultOpen: false,
-  //   //click: gotoGlassFlatness,
-  //   tooltip: {
-  //     text: "玻璃平整度检测",
-  //   },
-  //   children: [
-  //     {
-  //       label: "玻璃平整度检测",
-  //       to: "/smoothnessDetection",
-  //       exact: true,
-  //     },
-  //     {
-  //       label: "查看历史记录",
-  //       to: "/smoothnessDetection/history",
-  //     },
-  //   ],
-  // },
-  // {
-  //   id: "glassToughnessJudge",
-  //   label: "幕墙韧性评估",
-  //   to: "/resilienceAssessment",
-  //   icon: "i-simple-icons-testcafe",
-  //   defaultOpen: false,
-  //   // click: gotoGlassToughness,
-  //   tooltip: {
-  //     text: "幕墙韧性评估",
-  //   },
-  //   children: [
-  //     {
-  //       label: "评估数据上传",
-  //       to: "/resilienceAssessment/dataUpload",
-  //     },
-  //     {
-  //       label: "粗糙集评估",
-  //       to: "/resilienceAssessment/dangerAssess",
-  //       exact: true,
-  //       defaultOpen: false,
-  //       children:[
-  //         {
-  //           label: "危险系数评估",
-  //           to: "/resilienceAssessment/RS_dangerAssess",
-  //         },
-  //         {
-  //           label: "决策规则分析",
-  //           to: "/resilienceAssessment/deciRules",
-  //         },
-  //       ]
-  //     },
-  //     {
-  //       label: "熵权法评估",
-  //       to: "/resilienceAssessment/dangerAssess",
-  //       exact: true,
-  //       defaultOpen: false,
-  //       children:[
-  //         {
-  //           label: "危险系数评估",
-  //           to: "/resilienceAssessment/ETP_dangerAssess",
-  //         },
-  //       ]
-  //     },
-  //     {
-  //       label: "综合危险系数评估",
-  //       to: "/resilienceAssessment/dangerAssess",
-  //     },
-  //   ],
-  // },
-
-  // {
-  //   id: "accountManagement",
-  //   label: "账号管理",
-  //   icon: "i-heroicons-bell-alert",
-  //   to: "/accountManagement",
-  //   tooltip: {
-  //     text: "账号管理",
-  //   },
-  // },
   {
     id: "userManage",
     label: "用户管理",
@@ -476,7 +280,6 @@ const links = reactive([
     tooltip: {
       text: "用户管理",
     },
-    //click: checkPressmission,
   },
 ]);
 

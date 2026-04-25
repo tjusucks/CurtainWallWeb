@@ -314,7 +314,7 @@ const handleBeforeUpload = async (file: File) => {
     const cleanFileName = (imageName || file.name).replace(/[^a-zA-Z0-9.-]/g, '-');
 
     // 构建上传路径
-    uploadUrl.value = `http://110.42.214.164:9000/oss/upload/upload/${timestamp}-${cleanFileName}`;
+    uploadUrl.value = `http://8.159.143.133:9000/oss/upload/upload/${timestamp}-${cleanFileName}`;
     ElMessage.info('上传中');
 
     return true;

@@ -96,7 +96,7 @@ import axios from 'axios';
 import type { CascaderValue } from 'element-plus';
 import { ElMessage } from 'element-plus';
 
-const API_BASE_URL = 'http://110.42.214.164:8009';
+const API_BASE_URL = 'http://8.153.161.229:8009';
 const dataSource = ref<'api_second' | 'api_minute' | 'api_hour' | 'api_day'| 'api_week' | 'api_month' | 'api_year'>('api_minute');
 const selectedDataSource = ref('minute');
 

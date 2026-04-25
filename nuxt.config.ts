@@ -27,19 +27,19 @@ export default defineNuxtConfig({
   nitro: {
     devProxy: {
       '/api': {
-        target: 'http://110.42.214.164:8008',
+        target: 'http://8.159.143.133:8000',
         changeOrigin: true,
       },
       '/predict': {
-        target: 'http://110.42.214.164:8007',
+        target: 'http://47.102.208.89:8007',
         changeOrigin: true
       },
       '/history': {
-        target: 'http://110.42.214.164:8007',
+        target: 'http://47.102.208.89:8007',
         changeOrigin: true
       },
       '/oss': {
-        target: 'http://110.42.214.164:9000',
+        target: 'http://8.159.143.133:9000',
         changeOrigin: true,
       },
       '/crackdetection': {
@@ -66,6 +66,6 @@ export default defineNuxtConfig({
   },
 
   image: {
-    domains: ['110.42.214.164']
+    domains: ['8.159.143.133']
   }
 })
