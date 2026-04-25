@@ -130,7 +130,7 @@ const startDetection = async () => {
         
         uploadProgress.value = 0;
         const response = await axios.post(
-          `http://110.42.214.164:9000/oss/upload/${targetPath}`,
+          `http://8.159.143.133:9000/oss/upload/${targetPath}`,
           formData,
           {
             headers: { 'Content-Type': 'multipart/form-data' },

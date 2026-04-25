@@ -334,6 +334,8 @@ const pagedData = computed(() => {
   return filteredData.value.slice(start, start + pageSize.value);
 });
 
+import { jwtDecode } from 'jwt-decode'
+
 // 获取数据
 const fetchHistory = async () => {
   try {
@@ -346,84 +348,75 @@ const fetchHistory = async () => {
       return;
     }
 
-    try {
-      const { jwtDecode } = await import('jwt-decode');
-      const decode = jwtDecode(token);
+    const decode: any = jwtDecode(token);
 
-      const username = decode.username;
-      if (!username) {
-        console.error('Token 中未找到用户名:', decode);
-        ElMessage.warning('未获取到用户信息，请重新登录');
-        router.push('/login');
-        return;
-      }
-
-      const params: any = { username };
-      const response = await getHistory(params);
-      console.log('历史记录响应:', response);
-
-      if (response.status === 'success' && response.data?.length > 0) {
-        tableData.value = response.data.map((record: any) => {
-          console.log('处理单条记录:', record);
-
-          const baseInfo = {
-            input_url: record.input_url,
-            created_at: record.created_at,
-            history_id: record.history_id
-          };
-
-          let processedData = {
-            annotated_image_url: '',
-            warped_image_url: '',
-            result_image_url: '',
-            stain_percentage: 0
-          };
-
-          if (Array.isArray(record.output_url)) {
-            const annotatedImage = record.output_url.find(item => item.annotated_image_url);
-            if (annotatedImage) {
-              processedData.annotated_image_url = annotatedImage.annotated_image_url;
-            }
-
-            const detectionResults = record.output_url
-              .filter(item => item.warped_image_url && item.result_image_url && item.result_image_url !== null)
-              .map(item => ({
-                warped_image_url: item.warped_image_url,
-                result_image_url: item.result_image_url,
-                stain_percentage: item.stain_percentage
-              }));
-
-            if (detectionResults.length > 0) {
-              processedData.detectionResults = detectionResults;
-            }
-          }
-
-          const processedRecord = {
-            ...baseInfo,
-            ...processedData
-          };
-
-          console.log('处理后的记录:', processedRecord);
-          return processedRecord;
-        });
-
-        // 按时间倒序排序
-        tableData.value.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
-
-        // 初始化时展示所有记录
-        filteredData.value = [...tableData.value];
-        currentPage.value = 1;
-
-        console.log('最终处理后的数据:', tableData.value);
-      } else {
-        ElMessage.info('暂无历史记录');
-      }
-    } catch (decodeError) {
-      console.error('Token 解析失败:', decodeError);
-      ElMessage.error('登录信息已过期，请重新登录');
-      localStorage.removeItem('authToken');
+    const username = decode.username;
+    if (!username) {
+      console.error('Token 中未找到用户名:', decode);
+      ElMessage.warning('未获取到用户信息，请重新登录');
       router.push('/login');
       return;
+    }
+
+    const params: any = { username };
+    const response = await getHistory(params);
+    console.log('历史记录响应:', response);
+
+    if (response.status === 'success' && response.data?.length > 0) {
+      tableData.value = response.data.map((record: any) => {
+        console.log('处理单条记录:', record);
+
+        const baseInfo = {
+          input_url: record.input_url,
+          created_at: record.created_at,
+          history_id: record.history_id
+        };
+
+        let processedData = {
+          annotated_image_url: '',
+          warped_image_url: '',
+          result_image_url: '',
+          stain_percentage: 0
+        };
+
+        if (Array.isArray(record.output_url)) {
+          const annotatedImage = record.output_url.find(item => item.annotated_image_url);
+          if (annotatedImage) {
+            processedData.annotated_image_url = annotatedImage.annotated_image_url;
+          }
+
+          const detectionResults = record.output_url
+            .filter(item => item.warped_image_url && item.result_image_url && item.result_image_url !== null)
+            .map(item => ({
+              warped_image_url: item.warped_image_url,
+              result_image_url: item.result_image_url,
+              stain_percentage: item.stain_percentage
+            }));
+
+          if (detectionResults.length > 0) {
+            processedData.detectionResults = detectionResults;
+          }
+        }
+
+        const processedRecord = {
+          ...baseInfo,
+          ...processedData
+        };
+
+        console.log('处理后的记录:', processedRecord);
+        return processedRecord;
+      });
+
+      // 按时间倒序排序
+      tableData.value.sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+      // 初始化时展示所有记录
+      filteredData.value = [...tableData.value];
+      currentPage.value = 1;
+
+      console.log('最终处理后的数据:', tableData.value);
+    } else {
+      ElMessage.info('暂无历史记录');
     }
   } catch (error) {
     console.error('获取历史记录失败:', error);
