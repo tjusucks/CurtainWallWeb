@@ -159,6 +159,29 @@
               <UButton type="primary" @click="applyLimits" :loading="loadingLimits">应用</UButton>
             </div>
           </div>
+
+          <div class="parameter-group">
+            <h2 class="green-underline-title">三级预警规则</h2>
+            <hr class="divider" />
+            <div class="alert-rule-note">
+              当前前端按“实际值相对模型标准值的绝对差”展示三级预警。一级预警为生效阈值的
+              100%，二级预警为 75%，三级预警为 50%；邮件发送频率由后端统一控制。
+            </div>
+            <div class="alert-rule-grid">
+              <div class="alert-rule-card danger">
+                <strong>一级预警</strong>
+                <span>生效阈值的 100%</span>
+              </div>
+              <div class="alert-rule-card warning">
+                <strong>二级预警</strong>
+                <span>生效阈值的 75%</span>
+              </div>
+              <div class="alert-rule-card info">
+                <strong>三级预警</strong>
+                <span>生效阈值的 50%</span>
+              </div>
+            </div>
+          </div>
         </UForm>
       </div>
     </div>
@@ -468,6 +491,10 @@ export default {
     },
 
     updateThresholds(type, value) {
+      const numericValue = Number(value);
+      if (!Number.isFinite(numericValue)) {
+        return;
+      }
       console.log(numericValue);
       if (type === 'xThreshold') {
         this.yThreshold = Math.abs((numericValue * (this.ratio_y_x)).toFixed(2));
@@ -1050,6 +1077,54 @@ html, body {
 .device-item.strain-gauge.active {
   background-color: #ff8f00;
   color: white;
+}
+
+.alert-rule-note {
+  padding: 10px 12px;
+  border: 1px solid #dbeafe;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #334155;
+  line-height: 1.6;
+  font-size: 0.9rem;
+}
+
+.alert-rule-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 10px;
+  margin-top: 8px;
+}
+
+.alert-rule-card {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border-radius: 8px;
+  border-left: 4px solid #94a3b8;
+  background: #fff;
+}
+
+.alert-rule-card strong {
+  color: #0f172a;
+}
+
+.alert-rule-card span {
+  color: #64748b;
+  font-size: 0.85rem;
+}
+
+.alert-rule-card.danger {
+  border-left-color: #ef4444;
+}
+
+.alert-rule-card.warning {
+  border-left-color: #f59e0b;
+}
+
+.alert-rule-card.info {
+  border-left-color: #3b82f6;
 }
 </style>
 

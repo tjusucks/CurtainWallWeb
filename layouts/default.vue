@@ -105,7 +105,7 @@ const links = reactive([
         },
         children: [
           {
-            label: "仪表盘",
+            label: "监测总览",
             to: "/vibration/dashboard",
           },
           {
@@ -114,12 +114,16 @@ const links = reactive([
             exact: true,
           },
           {
-            label: "参数设置",
+            label: "预警规则",
             to: "/vibration/parameter",
           },
           {
-            label: "异常数据",
+            label: "预警记录",
             to: "/vibration/abnormal",
+          },
+          {
+            label: "服务器监控",
+            to: "/vibration/server-monitor",
           },
 
         ],

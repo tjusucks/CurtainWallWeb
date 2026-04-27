@@ -17,7 +17,11 @@
     <div class="container mx-auto px-4 py-6">
       <!-- 筛选条件 -->
       <div class="bg-white rounded p-4 mb-6">
-        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+        <div class="mb-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-slate-700">
+          这里展示的是“实际值相对模型标准值的绝对差”触发的三级预警记录，兼容下限与兼容上限用于承接旧接口数据。
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
           <!-- 设备选择 -->
           <div>
             <label class="block mb-2">设备选择</label>
@@ -66,6 +70,19 @@
                 <span>{{ data.label }}</span>
               </template>
             </el-cascader>
+          </div>
+
+          <!-- 预警等级筛选 -->
+          <div>
+            <label class="block mb-2">预警等级</label>
+            <el-select v-model="selectedLevel" class="w-full" :disabled="loading">
+              <el-option
+                v-for="option in levelOptions"
+                :key="option.value"
+                :label="option.label"
+                :value="option.value"
+              />
+            </el-select>
           </div>
 
           <!-- 时间选择 -->
@@ -136,7 +153,28 @@
               <el-table-column prop="device_id" label="设备ID" min-width="120" fixed />
               <el-table-column prop="device_name" label="设备名称" min-width="120" fixed />
               <el-table-column prop="time" label="时间" min-width="180" />
-              <el-table-column prop="data" label="数据值" min-width="120" />
+              <el-table-column label="预警等级" min-width="120">
+                <template #default="scope">
+                  <el-tag :type="getAlertLevelTag(scope.row.alert_level)" size="small">
+                    {{ getAlertLabel(scope.row.alert_level) }}
+                  </el-tag>
+                </template>
+              </el-table-column>
+              <el-table-column label="实际值" min-width="120">
+                <template #default="scope">
+                  {{ formatMetric(scope.row.actual_value) }}
+                </template>
+              </el-table-column>
+              <el-table-column label="标准值" min-width="120">
+                <template #default="scope">
+                  {{ formatMetric(scope.row.standard_value) }}
+                </template>
+              </el-table-column>
+              <el-table-column label="绝对差" min-width="120">
+                <template #default="scope">
+                  {{ formatMetric(scope.row.deviation) }}
+                </template>
+              </el-table-column>
               <el-table-column prop="direction" label="方向" min-width="150">
                 <template #default="scope">
                   {{ getDirectionLabel(scope.row.direction) }}
@@ -161,6 +199,12 @@ import { useFetch } from '@vueuse/core'
 import { Loading, InfoFilled } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 import { ElMessage } from 'element-plus'
+import {
+  deriveAlertMetrics,
+  getAlertLevelLabel,
+  getAlertLevelTagType,
+  getVibrationAlertConfig
+} from '~/composables/useVibrationAlertConfig'
 
 const router = useRouter()
 
@@ -196,6 +240,14 @@ const deviceList = ref([
   { device_id: '0020', device_name: '衷和楼#2Y' }
 ])
 const chartData = ref<any[]>([])
+const selectedLevel = ref('all')
+
+const levelOptions = [
+  { value: 'all', label: '全部等级' },
+  { value: 'level1', label: '一级预警' },
+  { value: 'level2', label: '二级预警' },
+  { value: 'level3', label: '三级预警' }
+]
 
 // 方向选项
 const directions = [
@@ -404,6 +456,29 @@ const getDirectionLabel = (direction: string): string => {
   return directionMap[direction] || direction
 }
 
+const formatMetric = (value: number | null | undefined) =>
+  typeof value === 'number' && Number.isFinite(value) ? value.toFixed(6) : '--'
+
+const getAlertLabel = (level: 'normal' | 'level3' | 'level2' | 'level1') =>
+  getAlertLevelLabel(level)
+
+const getAlertLevelTag = (level: 'normal' | 'level3' | 'level2' | 'level1') =>
+  getAlertLevelTagType(level)
+
+const enrichAlertRecord = (record: any, fallbackDeviceName: string) => {
+  const deviceName = String(record.device_name || fallbackDeviceName)
+  const metrics = deriveAlertMetrics(record, getVibrationAlertConfig(deviceName))
+
+  return {
+    ...record,
+    device_name: deviceName,
+    actual_value: metrics.actualValue,
+    standard_value: metrics.standardValue,
+    deviation: metrics.deviation,
+    alert_level: metrics.level
+  }
+}
+
 // 获取设备ID的辅助函数
 const getDeviceId = (deviceValue: any): string => {
   if (!deviceValue) return '';
@@ -488,7 +563,7 @@ const fetchData = async () => {
     if (result.status === 'success' && Array.isArray(result.data)) {
       if (result.data.length > 0) {
         // 确保每条记录都有device_id和device_name字段
-        chartData.value = result.data.map(item => {
+        const rows = result.data.map(item => {
           const record = { ...item };
 
           // 如果后端返回的数据没有device_id，但有device_name
@@ -503,8 +578,11 @@ const fetchData = async () => {
             }
           }
 
-          return record;
+          return enrichAlertRecord(record, deviceName);
         });
+        chartData.value = selectedLevel.value === 'all'
+          ? rows
+          : rows.filter(row => row.alert_level === selectedLevel.value);
         console.log('获取到数据:', chartData.value);
       } else {
         ElMessage.info('查询结果为空，未找到符合条件的数据');

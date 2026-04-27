@@ -6,6 +6,7 @@ export default defineNuxtRouteMiddleware((to, from) => {
         '/stonedirty': 'access_system_b',
         '/crackdetect': 'access_system_c',
         '/spallingDetection': 'access_system_d',
+        '/vibration': 'access_system_v',
         '/monitor': 'access_system_v',
         '/segment': 'access_system_f',
         '/smoothnessDetection': 'access_system_g',

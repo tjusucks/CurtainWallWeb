@@ -46,6 +46,10 @@ export default defineNuxtConfig({
         target: 'http://110.42.214.164:8001',
         //target: 'http://127.0.0.1:8080',
         changeOrigin: true,
+      },
+      '/m-api': {
+        target: process.env.NUXT_SERVER_MONITOR_UPSTREAM || 'http://8.159.143.133:8080/api/v1',
+        changeOrigin: true,
       }
     }
   },
@@ -60,12 +64,17 @@ export default defineNuxtConfig({
 
   // 确保环境变量在运行时可用
   runtimeConfig: {
+    // 服务端代理 `/m-api/*` 时使用的监控服务上游根地址。
+    monitorServiceOrigin:
+      process.env.NUXT_SERVER_MONITOR_UPSTREAM || 'http://8.159.143.133:8080',
     public: {
-      apiBase: process.env.NUXT_API_BASE_URL
+      apiBase: process.env.NUXT_API_BASE_URL,
+      serverMonitorApiPrefix: process.env.NUXT_PUBLIC_SERVER_MONITOR_PREFIX || '/m-api',
+      serverMonitorBase: process.env.NUXT_PUBLIC_SERVER_MONITOR_BASE || ''
     }
   },
 
   image: {
-    domains: ['8.159.143.133']
+    domains: ['8.159.143.133', '8.153.161.229', '110.42.214.164', '47.102.208.89']
   }
 })
