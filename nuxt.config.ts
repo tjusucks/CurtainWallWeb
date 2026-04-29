@@ -60,6 +60,8 @@ export default defineNuxtConfig({
     buildAssetsDir: '/_nuxt/',
   },
 
+  css: ['~/assets/styles/base.css'],
+
   compatibilityDate: '2024-12-17',
 
   // 确保环境变量在运行时可用
@@ -67,8 +69,11 @@ export default defineNuxtConfig({
     // 服务端代理 `/m-api/*` 时使用的监控服务上游根地址。
     monitorServiceOrigin:
       process.env.NUXT_SERVER_MONITOR_UPSTREAM || 'http://8.159.143.133:8080',
+    apiBase: process.env.NUXT_API_BASE_URL || 'http://8.159.143.133:8000',
+    benchmarkPath: process.env.BENCHMARK_PATH || '/benchmarks',
     public: {
-      apiBase: process.env.NUXT_API_BASE_URL,
+      apiBase: process.env.NUXT_API_BASE_URL || 'http://8.159.143.133:8000',
+      benchmarkPath: process.env.BENCHMARK_PATH || '/benchmarks',
       serverMonitorApiPrefix: process.env.NUXT_PUBLIC_SERVER_MONITOR_PREFIX || '/m-api',
       serverMonitorBase: process.env.NUXT_PUBLIC_SERVER_MONITOR_BASE || ''
     }
