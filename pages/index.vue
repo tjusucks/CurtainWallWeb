@@ -130,6 +130,13 @@ const modulesLine3 = reactive([
     icon: "i-heroicons-book-open",
     disabled: true,
   },
+  {
+    title: "金属幕墙锈蚀污损检测",
+    description: "用于识别和分析金属幕墙锈蚀污损图像",
+    target_address: "/corrosion",
+    permissionKey: "",
+    icon: "i-heroicons-fire",
+  },
 
 ]);
 const loadingAuth = ref(true); // 新增loading状态

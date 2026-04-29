@@ -277,6 +277,31 @@ const links = reactive([
 
   },
   {
+    id: "corrosion",
+    label: "金属幕墙锈蚀污损检测",
+    to: "/corrosion",
+    icon: "i-heroicons-fire",
+    tooltip: {
+      text: "金属幕墙锈蚀污损检测",
+    },
+    defaultOpen: false,
+    children: [
+      {
+        label: "检测中心",
+        to: "/corrosion",
+        exact: true,
+      },
+      {
+        label: "历史记录",
+        to: "/corrosion/history",
+      },
+      {
+        label: "日志中心",
+        to: "/corrosion/logs",
+      },
+    ],
+  },
+  {
     id: "userManage",
     label: "用户管理",
     to: "/userManage",

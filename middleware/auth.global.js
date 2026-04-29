@@ -1,5 +1,12 @@
 export default defineNuxtRouteMiddleware((to, from) => {
-    const whitelist = ['/login'];
+    const whitelist = ['/login', '/auth/login', '/auth/register'];
+
+    const readCookie = (name) => {
+      if (typeof document === 'undefined') return '';
+      const match = document.cookie.split(';').map((item) => item.trim()).find((item) => item.startsWith(`${name}=`));
+      if (!match) return '';
+      return decodeURIComponent(match.slice(name.length + 1));
+    };
 
     const permissionMap = {
         '/3DModel': 'access_system_a',
@@ -16,12 +23,16 @@ export default defineNuxtRouteMiddleware((to, from) => {
       };
   
     if (process.client) {
-      const token = localStorage.getItem('authToken');
+        const token = localStorage.getItem('authToken') || readCookie('auth_token');
       const userAuth = JSON.parse(localStorage.getItem('userAuth') || '{}');
+
+        if (!token && whitelist.includes(to.path)) {
+          return;
+        }
   
       // 未登录时，只允许访问白名单页面
       if (!token && !whitelist.includes(to.path)) {
-        return navigateTo('/login');
+          return navigateTo(to.path.startsWith('/corrosion') || to.path.startsWith('/auth') ? '/auth/login' : '/login');
       }
       // 管理员可以访问所有页面
       if (userAuth.is_superuser) return;

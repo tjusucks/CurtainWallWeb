@@ -4,6 +4,14 @@ export default defineEventHandler(async (event) => {
   const path = event.path
   console.log(`[Proxy Middleware] Received request: ${event.method} ${path}`)
   const runtimeConfig = useRuntimeConfig(event)
+
+  if (
+    path.startsWith('/api/auth') ||
+    path.startsWith('/api/corrosion') ||
+    path.startsWith('/api/proxy-image')
+  ) {
+    return
+  }
   
   // 配置映射
   const config = {
