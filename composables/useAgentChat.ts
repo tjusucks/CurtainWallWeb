@@ -23,7 +23,7 @@ export function useAgentChat() {
 
     try {
       // TODO: Swap to dynamic base url via runtime config or specific API prefix
-      const response = await fetch('http://127.0.0.1:8000/http-client/agent/chat', {
+      const response = await fetch('http://8.153.161.229:8009/http-client/agent/chat', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json'
