@@ -26,14 +26,14 @@ export default defineNuxtRouteMiddleware((to, from) => {
         const token = localStorage.getItem('authToken') || readCookie('auth_token');
       const userAuth = JSON.parse(localStorage.getItem('userAuth') || '{}');
 
-        // if (!token && whitelist.includes(to.path)) {
-        //   return;
-        // }
+        if (!token && whitelist.includes(to.path)) {
+          return;
+        }
   
       // 未登录时，只允许访问白名单页面
-      // if (!token && !whitelist.includes(to.path)) {
-      //     return navigateTo(to.path.startsWith('/corrosion') || to.path.startsWith('/auth') ? '/auth/login' : '/login');
-      // }
+      if (!token && !whitelist.includes(to.path)) {
+          return navigateTo(to.path.startsWith('/corrosion') || to.path.startsWith('/auth') ? '/auth/login' : '/login');
+      }
       // 管理员可以访问所有页面
       if (userAuth.is_superuser) return;
       // 通用权限检查逻辑
