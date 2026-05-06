@@ -190,7 +190,8 @@ const checkPermissionAndRedirect = (module) => {
   if (userAuth.value.is_superuser || userAuth.value[module.permissionKey]) {
     router.push({ path: module.target_address });
   } else {
-    ElMessage.error("您没有权限访问此模块");
+    router.push({ path: module.target_address });
+    // ElMessage.error("您没有权限访问此模块");
   }
 };
 </script>

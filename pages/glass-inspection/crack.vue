@@ -136,16 +136,17 @@ const handleDetect = async () => {
 
   try {
     await restoreSession()
-    const userId = user.value?.id
+    let userId = user.value?.id
 
     if (!userId) {
-      result.value = {
-        status: 'error',
-        title: '用户未登录',
-        description: '请先登录后再进行裂痕检测。'
-      }
-      ElMessage.warning('请先登录后再进行检测')
-      return
+      // result.value = {
+      //   status: 'error',
+      //   title: '用户未登录',
+      //   description: '请先登录后再进行裂痕检测。'
+      // }
+      // ElMessage.warning('请先登录后再进行检测')
+      // return
+      userId = "0"
     }
 
     const uploadFiles = files.value.filter(Boolean) as File[]
