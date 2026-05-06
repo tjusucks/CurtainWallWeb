@@ -1,8 +1,9 @@
 <template>
-  <UDashboardPage>
-    <UDashboardPanel grow>
+  <UDashboardPage class="min-h-0">
+    <UDashboardPanel grow class="min-h-0">
       <UDashboardNavbar title="玻璃裂痕检测" />
 
+      <UDashboardPanelContent class="gi-panel-content">
       <div class="gi-page">
         <div class="gi-shell">
           <FeaturePageHero
@@ -78,6 +79,7 @@
           </div>
         </div>
       </div>
+      </UDashboardPanelContent>
     </UDashboardPanel>
   </UDashboardPage>
 </template>
