@@ -3,79 +3,62 @@
     <UDashboardPanel :width="250" :resizable="{ min: 200, max: 300 }" collapsible>
       <UDashboardNavbar class="!border-transparent" :ui="{ left: 'flex-1' }">
         <template #left>
-          <WebInfo/>
-
+          <WebInfo />
         </template>
       </UDashboardNavbar>
 
       <UDashboardSidebar>
         <template #header>
-          <UDashboardSearchButton/>
+          <UDashboardSearchButton />
         </template>
 
-        <UDashboardSidebarLinks :links="links"/>
+        <UDashboardSidebarLinks :links="links" />
 
-        <UDivider/>
+        <UDivider />
 
-        <!--
-        <UDashboardSidebarLinks :links="[{ label: 'Colors', draggable: true, children: colors }]" @update:links="(colors: any) => defaultColors = colors" />
-        -->
-        <div class="flex-1"/>
+        <div class="flex-1" />
 
-        <UDashboardSidebarLinks :links="footerLinks"/>
+        <UDashboardSidebarLinks :links="footerLinks" />
 
-        <UDivider class="sticky bottom-0"/>
+        <UDivider class="sticky bottom-0" />
 
         <template #footer>
-          <!-- ~/components/UserDropdown.vue -->
-          <UserDropdown/>
+          <UserDropdown />
         </template>
       </UDashboardSidebar>
     </UDashboardPanel>
 
-    <slot/>
+    <slot />
 
-    <!-- ~/components/HelpSlideover.vue -->
-    <HelpSlideover/>
-    <!-- ~/components/NotificationsSlideover.vue -->
-    <!-- <NotificationsSlideover /> -->
+    <HelpSlideover />
 
     <ClientOnly>
-      <LazyUDashboardSearch :groups="groups"/>
+      <LazyUDashboardSearch :groups="groups" />
     </ClientOnly>
   </UDashboardLayout>
 </template>
 
 <script setup lang="ts">
-import {useRoute, useRouter} from "vue-router";
-import {onMounted} from "vue";
 import axios from "axios";
+import { ElMessage } from "element-plus";
 
-const route = useRoute();
-const router = useRouter();
-const appConfig = useAppConfig();
-const {isHelpSlideoverOpen} = useDashboard();
+type DashboardLink = {
+  id: string;
+  label: string;
+  icon?: string;
+  to?: string;
+  exact?: boolean;
+  defaultOpen?: boolean;
+  tooltip?: {
+    text: string;
+    shortcuts?: string[];
+  };
+  children?: any[];
+};
 
-// definePageMeta({
-//   middleware: "slidebar-renew",
-// });
+const { isHelpSlideoverOpen } = useDashboard();
 
-const userPermissions = ref({
-  is_superuser: false,
-  access_system_a: false,
-  access_system_b: false,
-  access_system_c: false,
-  access_system_d: false,
-  access_system_v: false,
-  access_system_f: false,
-  access_system_g: false,
-  access_system_h: false,
-  access_system_z: false,
-});
-
-
-
-const links = reactive([
+const links = reactive<DashboardLink[]>([
   {
     id: "home",
     label: "首页",
@@ -90,8 +73,11 @@ const links = reactive([
     id: "wind",
     label: "幕墙振动监测",
     icon: "i-simple-icons-tailwindcss",
-    to: "/monitor",
+    to: "/vibration",
     defaultOpen: false,
+    tooltip: {
+      text: "振动数据监测",
+    },
     children: [
       {
         id: "monitor",
@@ -125,43 +111,42 @@ const links = reactive([
             label: "服务器监控",
             to: "/vibration/server-monitor",
           },
-
         ],
       },
     ],
-    tooltip: {
-      text: "震动数据检测",
-    },
   },
   {
-    id: "stoneCrack",
-    label: "石材裂缝检测",
-    icon: "i-simple-icons-affinitypublisher",
-    to: "/crackdetect",
+    id: "glassInspection",
+    label: "玻璃智能检测",
+    icon: "i-heroicons-viewfinder-circle",
+    to: "/glass-inspection",
     defaultOpen: false,
+    tooltip: {
+      text: "玻璃检测",
+    },
     children: [
       {
-        label: "检测中心",
-        to : "/crackdetect",
+        id: "glassCrack",
+        label: "玻璃裂痕检测",
+        to: "/glass-inspection/crack",
         exact: true,
       },
       {
-        label:"历史记录",
-        to : "/crackdetect/history",
+        id: "glassFlatness",
+        label: "幕墙平整度检测",
+        to: "/glass-inspection/flatness",
       },
-      {
-        label: "数据集一览",
-        to: "/crackdetect/datasets",
-      }
-    ]
+    ],
   },
-
   {
     id: "resilienceAssessment",
     label: "幕墙性能评估",
     icon: "i-simple-icons-testcafe",
     to: "/resilience",
     defaultOpen: false,
+    tooltip: {
+      text: "幕墙性能评估",
+    },
     children: [
       {
         id: "dataset",
@@ -172,7 +157,7 @@ const links = reactive([
         tooltip: {
           text: "数据集管理",
           shortcuts: ["G", "M"],
-        }
+        },
       },
       {
         id: "analysisJob",
@@ -248,19 +233,14 @@ const links = reactive([
         ],
       },
     ],
-    tooltip: {
-      text: "幕墙韧性评估",
-    },
   },
-
-
   {
     id: "stoneDirty",
-    label: "石材污渍检测",
+    label: "石材污损检测",
     to: "/stonedirty/mainpage",
     icon: "i-heroicons-fire",
     tooltip: {
-      text: "石材污渍检测",
+      text: "石材污损检测",
     },
     defaultOpen: false,
     children: [
@@ -274,7 +254,6 @@ const links = reactive([
         to: "/stonedirty/otherpage",
       },
     ],
-
   },
   {
     id: "corrosion",
@@ -325,62 +304,69 @@ const userAuth = ref({
   access_system_z: false,
 });
 
-function removeLinkById(linkId: any) {
-  console.log("removeLink");
+function removeLinkById(linkId: string) {
   const index = links.findIndex((link) => link.id === linkId);
   if (index !== -1) {
-    links.splice(index, 1); // 使用 splice 确保响应性保持
+    links.splice(index, 1);
+  }
+}
+
+function removeChildLink(parentId: string, childId: string) {
+  const parentLink = links.find((link) => link.id === parentId);
+  if (!parentLink || !Array.isArray(parentLink.children)) {
+    return;
+  }
+
+  parentLink.children = parentLink.children.filter((child: any) => child.id !== childId);
+  if (parentLink.children.length === 0) {
+    removeLinkById(parentId);
   }
 }
 
 const getUserAuth = async () => {
   try {
     const authToken = localStorage.getItem("authToken");
+    if (!authToken) {
+      return;
+    }
+
     const response = await axios.get("/api/account/custom/getPermissions", {
       headers: {
         Authorization: `Bearer ${authToken}`,
       },
     });
+
     userAuth.value = response.data.data;
     if (userAuth.value.is_superuser) {
       return;
     }
+
     if (!userAuth.value.access_system_a) {
-      removeLinkById("3DBuildingModel");
+      removeLinkById("resilienceAssessment");
     }
     if (!userAuth.value.access_system_b) {
       removeLinkById("stoneDirty");
     }
     if (!userAuth.value.access_system_c) {
-      removeLinkById("stoneCrack");
-    }
-    if (!userAuth.value.access_system_d) {
-      removeLinkById("explosion");
+      removeChildLink("glassInspection", "glassCrack");
     }
     if (!userAuth.value.access_system_v) {
       removeLinkById("wind");
     }
-    if (!userAuth.value.access_system_f) {
-      removeLinkById("segment");
-    }
     if (!userAuth.value.access_system_g) {
-      removeLinkById("glassFlatness");
-    }
-    if (!userAuth.value.access_system_h) {
-      removeLinkById("glassToughnessJudge");
+      removeChildLink("glassInspection", "glassFlatness");
     }
     if (!userAuth.value.access_system_z) {
-      removeLinkById("corrosiondetection");
+      removeLinkById("corrosion");
     }
     if (!userAuth.value.is_superuser) {
       removeLinkById("userManage");
     }
   } catch (error) {
-    console.error("Failed to fetch permissions");
+    console.error("Failed to fetch permissions", error);
     ElMessage.error("获取用户权限失败");
   }
 };
-getUserAuth();
 
 onMounted(() => {
   getUserAuth();
@@ -412,39 +398,17 @@ const groups = computed(() => [
         label: "GitHub",
         icon: "i-simple-icons-github",
         click: () => {
-          window.open(
-              `https://github.com/CurtainWallMonitoringPlatform`,
-              "_blank"
-          );
+          window.open("https://github.com/CurtainWallMonitoringPlatform", "_blank");
         },
       },
     ],
   },
 ]);
-
-const defaultColors = ref(
-    ["green", "teal", "cyan", "sky", "blue", "indigo", "violet"].map((color) => ({
-      label: color,
-      chip: color,
-      click: () => (appConfig.ui.primary = color),
-    }))
-);
-const colors = computed(() =>
-    defaultColors.value.map((color) => ({
-      ...color,
-      active: appConfig.ui.primary === color.label,
-    }))
-);
-
-const backToMain = () => {
-  router.push("/");
-};
 </script>
 
 <style>
 .back-to-main-btn {
   margin: 5px;
   align-self: flex-end;
-  /* 对齐到容器的左侧 */
 }
 </style>
