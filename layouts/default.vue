@@ -131,7 +131,7 @@ const links = reactive<DashboardLink[]>([
     children: [
       {
         id: "glassCrack",
-        label: "玻璃裂痕检测",
+        label: "玻璃自爆检测",
         to: "/glass-inspection/crack",
         exact: true,
       },
