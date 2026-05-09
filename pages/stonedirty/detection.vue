@@ -453,7 +453,7 @@ async function handleExportCurrentReport() {
 
 .detection-container {
   display: grid;
-  grid-template-columns: 2fr 3fr;
+  grid-template-columns: 1fr 2fr;
   gap: 20px;
   max-width: 1400px;
   margin: 0 auto;
