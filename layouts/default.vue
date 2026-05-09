@@ -257,6 +257,14 @@ const links = reactive<DashboardLink[]>([
         label: "历史图片",
         to: "/stonedirty/otherpage",
       },
+      {
+        label: "检测工作台",
+        to: "/stonedirty/detection",
+      },
+      {
+        label: "检测历史",
+        to: "/stonedirty/history",
+      },
     ],
   },
   {

@@ -1,10 +1,16 @@
 <script setup lang="ts">
-import type * as Detection from '../../types/detection'
+import type * as Detection from '~/types/detection'
+import type { DetectionStatus } from '~/types/detection'
 import dayjs from 'dayjs'
-import { getDetectionList, getDetectionSignedUrl, getDetectionTask, retryDetection } from '../../api/detections'
-import { generatePDFReport } from '../../utils/pdfExport'
+import { getDetectionList, getDetectionSignedUrl, getDetectionTask, retryDetection } from '~/api/detections'
+import { exportSingleDetectionPdf, exportSelectedDetectionPdf } from '~/utils/detectionPdfExport'
 
-const selectedStatus = ref<'' | Detection.DetectionStatus>('')
+// 别名映射确保一致性
+const getDetectionListFunc = getDetectionList
+const getDetectionTaskFunc = getDetectionTask
+const getDetectionSignedUrlFunc = getDetectionSignedUrl
+
+const selectedStatus = ref<'' | DetectionStatus>('')
 const list = ref<Detection.DetectionTaskItem[]>([])
 const total = ref(0)
 const loading = ref(false)
@@ -14,23 +20,46 @@ const selectedRows = ref<Detection.DetectionTaskItem[]>([])
 const lastLoadedAt = ref(0)
 const dateRange = ref<[string, string] | []>([])
 
-const CACHE_DURATION = 15 * 60 * 1000
+// 缓存机制（按查询参数 + 页码缓存，页面切换后仍可命中）
+const CACHE_DURATION = 15 * 60 * 1000 // 15分钟缓存
 const CACHE_VERSION = 'v2-image-name'
-type HistoryCacheItem = { list: Detection.DetectionTaskItem[]; total: number; time: number }
+type HistoryCacheItem = {
+  list: Detection.DetectionTaskItem[]
+  total: number
+  time: number
+}
 
 function getHistoryCacheStore() {
   const g = globalThis as unknown as { __historyListCache?: Map<string, HistoryCacheItem> }
-  if (!g.__historyListCache) g.__historyListCache = new Map<string, HistoryCacheItem>()
+  if (!g.__historyListCache) {
+    g.__historyListCache = new Map<string, HistoryCacheItem>()
+  }
   return g.__historyListCache
 }
 
 function getCacheKey() {
-  return JSON.stringify({ v: CACHE_VERSION, currentPage: query.currentPage, size: query.size, status: query.status || '', buildingName: query.buildingName.trim(), startTime: query.startTime || '', endTime: query.endTime || '' })
+  return JSON.stringify({
+    v: CACHE_VERSION,
+    currentPage: query.currentPage,
+    size: query.size,
+    status: query.status || '',
+    buildingName: query.buildingName.trim(),
+    startTime: query.startTime || '',
+    endTime: query.endTime || ''
+  })
 }
 
-const query = reactive({ currentPage: 1, size: 10, status: undefined as Detection.DetectionStatus | undefined, buildingName: '', startTime: undefined as string | undefined, endTime: undefined as string | undefined })
+// 查询参数
+const query = reactive({
+  currentPage: 1,
+  size: 10,
+  status: undefined as DetectionStatus | undefined,
+  buildingName: '',
+  startTime: undefined as string | undefined,
+  endTime: undefined as string | undefined
+})
 
-const statusOptions: Array<{ label: string; value: '' | Detection.DetectionStatus }> = [
+const statusOptions: Array<{ label: string, value: '' | DetectionStatus }> = [
   { label: '全部', value: '' },
   { label: '待处理', value: 'pending' },
   { label: '处理中', value: 'processing' },
@@ -38,9 +67,12 @@ const statusOptions: Array<{ label: string; value: '' | Detection.DetectionStatu
   { label: '失败', value: 'failed' }
 ]
 
-function getInferenceModeLabel(mode?: Detection.InferenceMode) { return mode === 'cloud' ? '云端模型' : '本地模型' }
+function getInferenceModeLabel(mode?: Detection.InferenceMode) {
+  return mode === 'cloud' ? '云端模型' : '本地模型'
+}
 
 async function fetchList(useCache = true) {
+  // 检查缓存
   if (useCache) {
     const key = getCacheKey()
     const cache = getHistoryCacheStore().get(key)
@@ -55,33 +87,50 @@ async function fetchList(useCache = true) {
 
   loading.value = true
   try {
-    const resp = await getDetectionList({ currentPage: query.currentPage, size: query.size, status: query.status, buildingName: query.buildingName || undefined, startTime: query.startTime, endTime: query.endTime })
-    // API client returns either { list, total } or wrapped in data
-    const records = resp.list ?? resp.data?.list ?? []
-    const totalCount = resp.total ?? resp.data?.total ?? 0
+    const { list: records, total: totalCount } = await getDetectionListFunc({
+      currentPage: query.currentPage,
+      size: query.size,
+      status: query.status,
+      buildingName: query.buildingName || undefined,
+      startTime: query.startTime,
+      endTime: query.endTime
+    })
+
     list.value = records
     total.value = totalCount
     selectedRows.value = []
     lastLoadedAt.value = Date.now()
-    getHistoryCacheStore().set(getCacheKey(), { list: records, total: totalCount, time: lastLoadedAt.value })
+
+    // 更新缓存
+    getHistoryCacheStore().set(getCacheKey(), {
+      list: records,
+      total: totalCount,
+      time: lastLoadedAt.value
+    })
   } finally {
     loading.value = false
   }
 }
 
-function clearHistoryCache() { getHistoryCacheStore().clear() }
+function clearHistoryCache() {
+  getHistoryCacheStore().clear()
+}
 
 async function openDetail(id: string | number) {
   try {
-    const taskResp = await getDetectionTask(id)
-    const task = taskResp.data ?? taskResp
+    const task = await getDetectionTaskFunc(id)
 
-    if (!task.imageSignedUrl && task.imagePath) {
+    // 获取签名URL - 同时获取原图和处理后的图片
+    if (task.imagePath || task.id) {
       try {
-        const signed = await getDetectionSignedUrl(id)
-        task.imageSignedUrl = signed.data?.imageSignedUrl ?? signed.imageSignedUrl
-      } catch {
-        task.imageSignedUrl = null
+        const signed = await getDetectionSignedUrlFunc(id)
+        console.log('getDetectionSignedUrl response:', signed)
+        // 获取原图签名URL
+        task.imageSignedUrl = signed?.imageSignedUrl || signed?.image_signed_url || signed?.imagePath || task.imageSignedUrl || task.imagePath
+        // 获取处理后图片签名URL
+        task.processedImageSignedUrl = signed?.processedImageSignedUrl || signed?.processed_image_signed_url || signed?.processedImagePath || task.processedImageSignedUrl
+      } catch (e) {
+        console.warn('获取签名URL失败:', e)
       }
     }
 
@@ -119,7 +168,10 @@ function handleReset() {
   void fetchList(false)
 }
 
-function handleCurrentChange(page: number) { query.currentPage = page; void fetchList() }
+function handleCurrentChange(page: number) {
+  query.currentPage = page
+  void fetchList()
+}
 
 async function handleRetry(id: string | number) {
   try {
@@ -127,57 +179,96 @@ async function handleRetry(id: string | number) {
     ElMessage.success('任务已重新提交')
     clearHistoryCache()
     await fetchList(false)
-  } catch (e) {
-    console.error(e)
+  } catch (error) {
+    console.error(error)
     ElMessage.error('重试失败')
   }
 }
 
-async function handleManualRefresh() { clearHistoryCache(); await fetchList(false); ElMessage.success('历史列表已刷新') }
+async function handleManualRefresh() {
+  clearHistoryCache()
+  await fetchList(false)
+  ElMessage.success('历史列表已刷新')
+}
 
 async function handleExportRowReport(taskId: string | number) {
   try {
-    const resp = await getDetectionTask(taskId)
-    const task = resp.data ?? resp
-    const reportItem = [{ filename: task.imageName || `task-${task.id}`, input: task.imageSignedUrl || task.imagePath || '', output: task.processedImageSignedUrl || '', params: {}, metrics: task.metrics || {} }]
-    await generatePDFReport(reportItem as any)
+    const task = await getDetectionTaskFunc(taskId)
+    
+    // 获取签名URL用于导出
+    if (!task.imageSignedUrl) {
+      try {
+        const signed = await getDetectionSignedUrlFunc(taskId)
+        task.imageSignedUrl = signed?.imageSignedUrl || signed?.image_signed_url || signed?.imagePath || task.imageSignedUrl || task.imagePath
+        task.processedImageSignedUrl = signed?.processedImageSignedUrl || signed?.processed_image_signed_url || signed?.processedImagePath || task.processedImageSignedUrl
+      } catch (e) {
+        console.warn('获取签名URL失败:', e)
+      }
+    }
+    
+    await exportSingleDetectionPdf(task, `history-report-${task.id}.pdf`)
     ElMessage.success('PDF报告已导出')
-  } catch (e) {
-    console.error(e)
+  } catch {
     ElMessage.error('导出失败，请稍后重试')
   }
 }
 
-function handleSelectionChange(rows: Detection.DetectionTaskItem[]) { selectedRows.value = rows }
+function handleSelectionChange(rows: Detection.DetectionTaskItem[]) {
+  selectedRows.value = rows
+}
 
 async function handleExportSelectedReport() {
-  if (!selectedRows.value.length) { ElMessage.warning('请先勾选历史记录'); return }
+  if (!selectedRows.value.length) {
+    ElMessage.warning('请先勾选历史记录')
+    return
+  }
+
   try {
-    const tasks = await Promise.all(selectedRows.value.map(item => getDetectionTask(item.id).then(r => r.data ?? r)))
-    const reportItems = tasks.map(t => ({ filename: t.imageName || `task-${t.id}`, input: t.imageSignedUrl || t.imagePath || '', output: t.processedImageSignedUrl || '', params: {}, metrics: t.metrics || {} }))
-    await generatePDFReport(reportItems as any)
+    const tasks = await Promise.all(selectedRows.value.map((item) => getDetectionTaskFunc(item.id)))
+    
+    // 获取所有任务的签名URL
+    await Promise.all(tasks.map(async (task) => {
+      if (!task.imageSignedUrl && task.id) {
+        try {
+          const signed = await getDetectionSignedUrlFunc(task.id)
+          task.imageSignedUrl = signed?.imageSignedUrl || signed?.image_signed_url || signed?.imagePath || task.imageSignedUrl || task.imagePath
+          task.processedImageSignedUrl = signed?.processedImageSignedUrl || signed?.processed_image_signed_url || signed?.processedImagePath || task.processedImageSignedUrl
+        } catch (e) {
+          console.warn('获取签名URL失败:', e)
+        }
+      }
+    }))
+    
+    await exportSelectedDetectionPdf(tasks, `history-selected-${dayjs().format('YYYYMMDD-HHmmss')}.pdf`)
     ElMessage.success(`已导出${tasks.length}条历史记录`)
-  } catch (e) {
-    console.error(e)
+  } catch {
     ElMessage.error('导出失败，请稍后重试')
   }
 }
 
+// 定期刷新签名URL
 async function refreshTaskUrl() {
   if (!historyDetailTask.value?.id) return
   try {
-    const signed = await getDetectionSignedUrl(historyDetailTask.value.id, 3600)
-    const s = signed.data ?? signed
-    if (historyDetailTask.value) historyDetailTask.value.imageSignedUrl = s.imageSignedUrl ?? s.imageSignedUrl
+    const signed = await getDetectionSignedUrlFunc(historyDetailTask.value.id)
+    if (historyDetailTask.value) {
+      historyDetailTask.value.imageSignedUrl = signed?.imageSignedUrl || signed?.image_signed_url || signed?.imagePath || historyDetailTask.value.imageSignedUrl || historyDetailTask.value.imagePath
+      historyDetailTask.value.processedImageSignedUrl = signed?.processedImageSignedUrl || signed?.processed_image_signed_url || signed?.processedImagePath || historyDetailTask.value.processedImageSignedUrl
+    }
   } catch {
-    // ignore
+    // 忽略错误
   }
 }
 
-onMounted(() => { selectedStatus.value = query.status || ''; void fetchList(true) })
+onMounted(() => {
+  selectedStatus.value = query.status || ''
+  void fetchList(true)
+})
 
+// 当详情框打开时，设置定时刷新签名URL
 watch(detailVisible, (isVisible) => {
   if (isVisible) {
+    // 每1小时刷新一次签名URL
     const interval = setInterval(refreshTaskUrl, 1000 * 60 * 60)
     onBeforeUnmount(() => clearInterval(interval))
   }

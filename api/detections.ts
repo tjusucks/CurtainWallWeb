@@ -1,10 +1,18 @@
 import axios from 'axios'
 
-const BASE = process.env.STAIN_BACKEND_URL || 'http://localhost:8081/api'
+const BASE = '/detection-api/api'
 
 function getAuthHeaders() {
   const token = localStorage.getItem('authToken')
   return token ? { Authorization: `Bearer ${token}` } : {}
+}
+
+function unwrapApiResponse<T>(resp: { data: any }): T {
+  const body = resp.data
+  if (body && typeof body === 'object' && 'code' in body && body.code !== 0) {
+    throw new Error(body.message || '请求失败')
+  }
+  return (body?.data ?? body) as T
 }
 
 export async function createDetectionTask(file: File, payload: any, onUploadProgress?: (p: number) => void) {
@@ -19,37 +27,47 @@ export async function createDetectionTask(file: File, payload: any, onUploadProg
 
   const resp = await axios.post(url, data, {
     headers: {
-      ...getAuthHeaders(),
-      'Content-Type': 'multipart/form-data'
+      ...getAuthHeaders()
     },
     onUploadProgress: (e: ProgressEvent) => {
       if (!e.total || !onUploadProgress) return
       onUploadProgress(Math.round((e.loaded / e.total) * 100))
     }
   })
-  return resp.data
+  return unwrapApiResponse(resp)
 }
 
 export async function getDetectionTask(taskId: string | number) {
   const url = `${BASE}/detections/${taskId}`
   const resp = await axios.get(url, { headers: getAuthHeaders() })
-  return resp.data
+  return unwrapApiResponse(resp)
 }
 
 export async function getDetectionList(params: any) {
   const url = `${BASE}/detections`
-  const resp = await axios.get(url, { headers: getAuthHeaders(), params })
-  return resp.data
+  const queryParams: any = {}
+  if (params.currentPage) queryParams.current_page = params.currentPage
+  if (params.size) queryParams.size = params.size
+  if (params.status) queryParams.status = params.status
+  if (params.buildingName) queryParams.building_name = params.buildingName
+  if (params.startTime) queryParams.start_time = params.startTime
+  if (params.endTime) queryParams.end_time = params.endTime
+  const resp = await axios.get(url, { headers: getAuthHeaders(), params: queryParams })
+  const apiResp = unwrapApiResponse<{ items: any[], pagination: { total?: number } }>(resp)
+  return {
+    list: apiResp.items ?? [],
+    total: apiResp.pagination?.total ?? 0
+  }
 }
 
 export async function getDetectionSignedUrl(taskId: string | number) {
   const url = `${BASE}/detections/${taskId}/signed-url`
   const resp = await axios.get(url, { headers: getAuthHeaders() })
-  return resp.data
+  return unwrapApiResponse(resp)
 }
 
 export async function retryDetection(taskId: string | number) {
   const url = `${BASE}/detections/${taskId}/retry`
   const resp = await axios.post(url, {}, { headers: getAuthHeaders() })
-  return resp.data
+  return unwrapApiResponse(resp)
 }

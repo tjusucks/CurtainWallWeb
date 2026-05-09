@@ -50,6 +50,10 @@ export default defineNuxtConfig({
       '/m-api': {
         target: process.env.NUXT_SERVER_MONITOR_UPSTREAM || 'http://8.159.143.133:8080/api/v1',
         changeOrigin: true,
+      },
+      '/detection-api': {
+        target: 'http://localhost:8081',
+        changeOrigin: true,
       }
     }
   },
