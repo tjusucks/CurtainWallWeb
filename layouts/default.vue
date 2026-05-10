@@ -111,10 +111,6 @@ const links = reactive<DashboardLink[]>([
             label: "服务器监控",
             to: "/vibration/server-monitor",
           },
-          {
-            label: "Agent 智能配置",
-            to: "/vibration/agent-chat",
-          },
         ],
       },
     ],

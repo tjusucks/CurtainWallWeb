@@ -5,15 +5,84 @@
     </div>
 
     <UForm :state="formState" class="page-body">
+      <!-- 一键预警阈值设置面板 -->
+      <section class="panel weather-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow weather-eyebrow">气象驱动</p>
+            <h2>一键预警阈值设置</h2>
+          </div>
+          <div class="status-chip weather-status-chip">
+            定时任务状态
+            <strong>{{ schedulerConfig.isRunning ? '运行中' : '未运行' }}</strong>
+          </div>
+        </div>
+
+        <div class="weather-summary-grid">
+          <article class="weather-summary-card">
+            <span>数据来源</span>
+            <strong>NASA 小时级风速数据</strong>
+          </article>
+          <article class="weather-summary-card">
+            <span>当前风速</span>
+            <strong>{{ weatherData.wind_speed_ms || '--' }} m/s</strong>
+          </article>
+          <article class="weather-summary-card">
+            <span>所属风速区间</span>
+            <strong>{{ weatherData.wind_bin || '未识别' }}</strong>
+          </article>
+        </div>
+
+        <div class="note-card weather-note-card">
+          <p>执行“一键刷新预警阈值”时，系统将按后端规则文件和当前气象数据更新各设备预警阈值。</p>
+          <p>定时任务用于自动执行同一刷新流程。</p>
+        </div>
+
+        <div class="weather-action-layout">
+          <div class="weather-action-card">
+            <h3>立即执行</h3>
+            <p>手动触发一次阈值刷新，执行结果以接口返回为准。</p>
+            <el-button type="primary" size="large" @click="applyWeatherRulesNow" :loading="isApplying">
+              <div class="i-heroicons-bolt mr-2 w-5 h-5"></div> 一键刷新预警阈值
+            </el-button>
+          </div>
+          
+          <div class="schedule-card">
+            <h3>定时任务配置</h3>
+            <el-radio-group v-model="schedulerConfig.type">
+              <el-radio label="interval">间隔定时任务</el-radio>
+              <el-radio label="cron">每日定时任务</el-radio>
+            </el-radio-group>
+
+            <div v-if="schedulerConfig.type === 'interval'" class="schedule-row">
+              <span>每隔</span>
+              <el-input-number v-model="schedulerConfig.minutes" :min="10" :max="1440" />
+              <span>分钟执行一次预警阈值刷新。</span>
+            </div>
+            
+            <div v-if="schedulerConfig.type === 'cron'" class="schedule-row">
+              <span>每天</span>
+              <el-time-picker v-model="schedulerConfig.cronTime" format="HH:mm" placeholder="选择时间" />
+              <span>执行一次预警阈值刷新。</span>
+            </div>
+
+            <div class="schedule-actions">
+              <el-button type="success" @click="saveSchedule">保存并启动定时任务</el-button>
+              <el-button type="danger" @click="stopSchedule" v-if="schedulerConfig.isRunning">停止定时任务</el-button>
+            </div>
+          </div>
+        </div>
+      </section>
+
       <section class="panel">
         <div class="panel-heading">
           <div>
             <p class="eyebrow">设备选择</p>
-            <h1>人工阈值设置</h1>
+            <h1>人工上下限设置</h1>
           </div>
           <div class="status-chip">
             当前生效来源
-            <strong>人工设置</strong>
+            <strong>人工配置</strong>
           </div>
         </div>
 
@@ -71,8 +140,8 @@
         </div>
 
         <div class="note-card">
-          当前页面只填写业务上的上限和下限。保存时会自动换算到底层字段：
-          offset = (上限 + 下限) / 2，limit = (上限 - 下限) / 2。
+          本页仅维护业务侧展示的上限与下限。保存时自动换算为后端字段：
+          <strong>offset = (上限 + 下限) / 2</strong>，<strong>limit = (上限 - 下限) / 2</strong>。
         </div>
 
         <div v-for="channel in visibleChannels" :key="channel.key" class="channel-card">
@@ -81,14 +150,14 @@
               <h3>{{ channel.label }}</h3>
               <p>{{ channel.description }}</p>
             </div>
-            <span class="channel-tag">已按上下限展示</span>
+              <span class="channel-tag">上下限展示</span>
           </div>
 
           <div class="limit-grid">
             <article class="limit-panel current-panel">
               <div class="panel-title">
                 <h4>当前值</h4>
-                <span>接口返回</span>
+                <span>接口返回结果</span>
               </div>
               <div class="metric-row">
                 <span>上限</span>
@@ -111,7 +180,7 @@
             <article class="limit-panel edit-panel">
               <div class="panel-title">
                 <h4>人工设置</h4>
-                <span>保存到后端</span>
+                <span>提交至后端</span>
               </div>
 
               <label class="field-row">
@@ -149,14 +218,14 @@
       <section class="panel">
         <div class="panel-heading">
           <div>
-            <p class="eyebrow">固定派生规则</p>
+            <p class="eyebrow">派生规则</p>
             <h2>三级预警规则</h2>
           </div>
         </div>
 
         <div class="note-card">
-          预警等级按实际值偏离中心值的程度派生，中心值 = (上限 + 下限) / 2。
-          一级预警 = limit 的 100%，二级预警 = 75%，三级预警 = 50%。邮件发送频率先由后端统一控制。
+          预警等级按阈值中心值派生，中心值 = (上限 + 下限) / 2。
+          一级预警 = limit 的 100%，二级预警 = 75%，三级预警 = 50%。邮件发送频率由后端统一控制。
         </div>
 
         <div class="rule-grid">
@@ -531,7 +600,103 @@ const selectDevice = async (device: DeviceOption) => {
   await fetchThresholds();
 };
 
+const weatherData = reactive({
+  wind_bin: ''
+});
+
+const schedulerConfig = reactive({
+  type: 'interval',
+  minutes: 60,
+  cronTime: new Date(new Date().setHours(2, 0, 0, 0)), // 默认凌晨2点
+  isRunning: false
+});
+
+const isApplying = ref(false);
+
+const fetchWeatherData = async () => {
+  try {
+    const res = await axios.get(`${API_BASE_URL}/agent/weather-status`);
+    if (res.data.status === 'success') {
+      weatherData.wind_speed_ms = res.data.wind_speed_ms;
+      weatherData.wind_bin = res.data.wind_bin;
+    }
+  } catch (error) {
+    console.error("读取气象失败", error);
+  }
+};
+
+const applyWeatherRulesNow = async () => {
+  try {
+    isApplying.value = true;
+    const res = await axios.post(`${API_BASE_URL}/agent/execute-now`);
+    ElMessage.success(res.data.msg);
+  } catch (error) {
+    ElMessage.error("一键设置失败");
+  } finally {
+    isApplying.value = false;
+  }
+};
+
+const syncScheduleConfigFromBackend = (config: any) => {
+  schedulerConfig.isRunning = Boolean(config?.isRunning);
+
+  if (config?.type === 'cron') {
+    schedulerConfig.type = 'cron';
+    const hour = Number.isFinite(Number(config.hour)) ? Number(config.hour) : 0;
+    const minute = Number.isFinite(Number(config.minute)) ? Number(config.minute) : 0;
+    schedulerConfig.cronTime = new Date(new Date().setHours(hour, minute, 0, 0));
+    return;
+  }
+
+  schedulerConfig.type = 'interval';
+  if (Number.isFinite(Number(config?.minutes))) {
+    schedulerConfig.minutes = Number(config.minutes);
+  }
+};
+
+const fetchScheduleConfig = async () => {
+  try {
+    const res = await axios.get(`${API_BASE_URL}/agent/schedule-config`);
+    if (res.data.status === 'success') {
+      syncScheduleConfigFromBackend(res.data.data ?? {});
+    }
+  } catch (error) {
+    console.error("读取定时任务配置失败", error);
+  }
+};
+
+const saveSchedule = async () => {
+  try {
+    const payload = {
+      type: schedulerConfig.type,
+      minutes: schedulerConfig.minutes,
+      hour: schedulerConfig.cronTime ? schedulerConfig.cronTime.getHours() : 0,
+      minute: schedulerConfig.cronTime ? schedulerConfig.cronTime.getMinutes() : 0
+    };
+    const res = await axios.post(`${API_BASE_URL}/agent/set-schedule`, payload);
+    schedulerConfig.isRunning = true;
+    await fetchScheduleConfig();
+    ElMessage.success(res.data.msg);
+  } catch (error) {
+    ElMessage.error("定时任务设置失败");
+  }
+};
+
+const stopSchedule = async () => {
+  try {
+    const payload = { type: 'stop' };
+    const res = await axios.post(`${API_BASE_URL}/agent/set-schedule`, payload);
+    schedulerConfig.isRunning = false;
+    await fetchScheduleConfig();
+    ElMessage.success(res.data.msg);
+  } catch (error) {
+    ElMessage.error("停止任务失败");
+  }
+};
+
 onMounted(async () => {
+  fetchWeatherData();
+  await fetchScheduleConfig();
   await fetchThresholds();
 });
 </script>
@@ -607,6 +772,102 @@ onMounted(async () => {
 
 .status-chip strong {
   font-size: 18px;
+}
+
+.weather-panel {
+  border: 2px solid #bfdbfe;
+  background: linear-gradient(180deg, #eff6ff 0%, #f8fbff 100%);
+}
+
+.weather-panel .panel-heading h2 {
+  color: #1e40af;
+}
+
+.weather-eyebrow {
+  color: #2563eb;
+}
+
+.weather-status-chip {
+  background: #dbeafe;
+  border-color: #bfdbfe;
+  color: #1e40af;
+}
+
+.weather-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.weather-summary-card,
+.weather-action-card,
+.schedule-card {
+  background: #fff;
+  border: 1px solid #bfdbfe;
+  border-radius: 16px;
+  padding: 16px;
+}
+
+.weather-summary-card span {
+  display: block;
+  color: #64748b;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.weather-summary-card strong {
+  color: #1e3a8a;
+  font-size: 17px;
+}
+
+.weather-note-card {
+  background: #fff;
+  border-left: 4px solid #3b82f6;
+}
+
+.weather-note-card p {
+  margin: 0;
+}
+
+.weather-note-card p + p {
+  margin-top: 8px;
+}
+
+.weather-action-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.8fr) minmax(0, 1.2fr);
+  gap: 16px;
+}
+
+.weather-action-card h3,
+.schedule-card h3 {
+  margin: 0 0 10px;
+  font-size: 17px;
+  color: #1e3a8a;
+}
+
+.weather-action-card p {
+  margin: 0 0 14px;
+  color: #475569;
+  line-height: 1.6;
+}
+
+.schedule-row {
+  margin-top: 12px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+  color: #4b5563;
+  font-size: 14px;
+}
+
+.schedule-actions {
+  margin-top: 16px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
 .building-grid {
@@ -846,6 +1107,8 @@ onMounted(async () => {
 @media (max-width: 960px) {
   .building-grid,
   .summary-card,
+  .weather-summary-grid,
+  .weather-action-layout,
   .limit-grid,
   .rule-grid,
   .derived-grid {

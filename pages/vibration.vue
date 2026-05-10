@@ -47,12 +47,6 @@ const links = [[
   label: '服务器监控',
   icon: 'i-heroicons-server-stack',
   to: '/vibration/server-monitor'
-},
-{
-  id: 'agent',
-  label: 'Agent 智能配置',
-  icon: 'i-heroicons-sparkles',
-  to: '/vibration/agent-chat'
 }
 ]]
 </script>
