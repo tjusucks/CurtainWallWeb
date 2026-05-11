@@ -18,24 +18,78 @@
           </div>
         </div>
 
-        <div class="weather-summary-grid">
-          <article class="weather-summary-card">
-            <span>数据来源</span>
-            <strong>NASA 小时级风速数据</strong>
-          </article>
-          <article class="weather-summary-card">
-            <span>当前风速</span>
-            <strong>{{ weatherData.wind_speed_ms || '--' }} m/s</strong>
-          </article>
-          <article class="weather-summary-card">
-            <span>所属风速区间</span>
-            <strong>{{ weatherData.wind_bin || '未识别' }}</strong>
-          </article>
+        <!-- ── Wind Visual Panel ── -->
+        <div class="wind-visual-grid">
+          <!-- Wind Speed Gauge -->
+          <div class="wind-gauge-card">
+            <p class="gauge-eyebrow">实时风速</p>
+            <div ref="windGaugeRef" class="gauge-canvas"></div>
+            <div class="gauge-badge-row">
+              <span
+                class="beaufort-badge"
+                :style="{
+                  background: windBeaufort.color + '22',
+                  color: windBeaufort.color,
+                  border: `1px solid ${windBeaufort.color}55`
+                }"
+              >
+                蒲福 {{ windBeaufort.level }} 级 · {{ windBeaufort.label }}
+              </span>
+            </div>
+          </div>
+
+          <!-- Wind Direction Compass -->
+          <div class="wind-compass-card">
+            <p class="gauge-eyebrow">风向</p>
+            <svg viewBox="0 0 180 180" xmlns="http://www.w3.org/2000/svg" class="compass-svg">
+              <circle cx="90" cy="90" r="84" fill="rgba(219,234,254,0.25)" stroke="#bfdbfe" stroke-width="1.5"/>
+              <circle cx="90" cy="90" r="62" fill="none" stroke="#dbeafe" stroke-width="1" stroke-dasharray="3,5"/>
+              <circle cx="90" cy="90" r="36" fill="rgba(239,246,255,0.3)" stroke="#e0e7ef" stroke-width="1"/>
+              <text x="90" y="14" text-anchor="middle" fill="#1e40af" font-size="13" font-weight="800" font-family="system-ui,sans-serif">N</text>
+              <text x="172" y="94" text-anchor="middle" fill="#64748b" font-size="11" font-weight="600" font-family="system-ui,sans-serif">E</text>
+              <text x="90" y="178" text-anchor="middle" fill="#64748b" font-size="11" font-weight="600" font-family="system-ui,sans-serif">S</text>
+              <text x="8" y="94" text-anchor="middle" fill="#64748b" font-size="11" font-weight="600" font-family="system-ui,sans-serif">W</text>
+              <line x1="149" y1="31" x2="143" y2="37" stroke="#93c5fd" stroke-width="1.5"/>
+              <line x1="149" y1="149" x2="143" y2="143" stroke="#93c5fd" stroke-width="1.5"/>
+              <line x1="31" y1="149" x2="37" y2="143" stroke="#93c5fd" stroke-width="1.5"/>
+              <line x1="31" y1="31" x2="37" y2="37" stroke="#93c5fd" stroke-width="1.5"/>
+              <line x1="90" y1="26" x2="90" y2="154" stroke="#e2e8f0" stroke-width="1"/>
+              <line x1="26" y1="90" x2="154" y2="90" stroke="#e2e8f0" stroke-width="1"/>
+              <g :transform="`rotate(${windArrowRotation}, 90, 90)`">
+                <polygon points="90,16 84,90 90,76 96,90" fill="#3b82f6" opacity="0.92"/>
+                <polygon points="90,164 84,90 90,104 96,90" fill="#cbd5e1" opacity="0.85"/>
+              </g>
+              <circle cx="90" cy="90" r="8" fill="white" stroke="#3b82f6" stroke-width="2.5"/>
+              <circle cx="90" cy="90" r="3.5" fill="#3b82f6"/>
+            </svg>
+            <p class="compass-dir-label">{{ windDirectionLabel }}</p>
+          </div>
+
+          <!-- Wind Info Stack -->
+          <div class="wind-info-stack">
+            <div class="wind-info-row">
+              <span>数据来源</span>
+              <strong>NASA 小时级风速数据</strong>
+            </div>
+            <div class="wind-info-row">
+              <span>当前风速</span>
+              <strong :style="{ color: windBeaufort.color }">
+                {{ weatherData.wind_speed_ms !== null ? weatherData.wind_speed_ms + ' m/s' : '--' }}
+              </strong>
+            </div>
+            <div class="wind-info-row">
+              <span>所属风速区间</span>
+              <strong>{{ weatherData.wind_bin || '未识别' }}</strong>
+            </div>
+            <div class="wind-info-row">
+              <span>蒲福风力等级</span>
+              <strong>{{ windBeaufort.level }} 级（{{ windBeaufort.label }}）</strong>
+            </div>
+          </div>
         </div>
 
         <div class="note-card weather-note-card">
-          <p>执行“一键刷新预警阈值”时，系统将按后端规则文件和当前气象数据更新各设备预警阈值。</p>
-          <p>定时任务用于自动执行同一刷新流程。</p>
+          执行“一键刷新预警阈值”时，系统将按后端规则文件和当前气象数据自动更新各设备预警阈值，定时任务将同一流程自动化。
         </div>
 
         <div class="weather-action-layout">
@@ -203,6 +257,42 @@
             </article>
 
           </div>
+
+          <!-- Threshold zone visualization -->
+          <div v-if="currentLimits[channel.key].threshold > 0" class="threshold-zone-section">
+            <div class="tz-header">
+              <span class="tz-title">阈值区间可视化</span>
+              <span class="tz-note">色条直观展示三级预警区间分布</span>
+            </div>
+            <div class="tz-bar-outer">
+              <div class="tz-bar">
+                <div class="tz-seg tz-over" title="超出一级阈值（危险）"><span>超限</span></div>
+                <div class="tz-seg tz-lv2"  title="二级预警（75%~100%）"><span>L2</span></div>
+                <div class="tz-seg tz-lv3"  title="三级预警（50%~75%）"><span>L3</span></div>
+                <div class="tz-seg tz-safe" title="安全区（0~50% 偏差）"><span>安全区</span></div>
+                <div class="tz-seg tz-lv3"  title="三级预警（50%~75%）"><span>L3</span></div>
+                <div class="tz-seg tz-lv2"  title="二级预警（75%~100%）"><span>L2</span></div>
+                <div class="tz-seg tz-over" title="超出一级阈值（危险）"><span>超限</span></div>
+              </div>
+              <div class="tz-markers">
+                <div class="tz-mark" style="left: 11.54%">
+                  <div class="tz-mark-line"></div>
+                  <div class="tz-mark-val">{{ formatValue(currentLimits[channel.key].lower) }}</div>
+                  <div class="tz-mark-sub">下限</div>
+                </div>
+                <div class="tz-mark tz-mark-mid" style="left: 50%">
+                  <div class="tz-mark-line"></div>
+                  <div class="tz-mark-val">{{ formatValue(currentLimits[channel.key].offset) }}</div>
+                  <div class="tz-mark-sub">中心</div>
+                </div>
+                <div class="tz-mark" style="left: 88.46%">
+                  <div class="tz-mark-line"></div>
+                  <div class="tz-mark-val">{{ formatValue(currentLimits[channel.key].upper) }}</div>
+                  <div class="tz-mark-sub">上限</div>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="action-bar">
@@ -272,9 +362,10 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref } from "vue";
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import axios from "axios";
+import * as echarts from 'echarts';
 import { ElMessage } from "element-plus";
 import {
   defaultVibrationAlertConfig,
@@ -600,8 +691,119 @@ const selectDevice = async (device: DeviceOption) => {
   await fetchThresholds();
 };
 
-const weatherData = reactive({
-  wind_bin: ''
+const weatherData = reactive<{
+  wind_speed_ms: number | null;
+  wind_bin: string;
+  wind_direction_deg: number | null;
+}>({
+  wind_speed_ms: null,
+  wind_bin: '',
+  wind_direction_deg: null,
+});
+
+const windGaugeRef = ref<HTMLDivElement | null>(null);
+let windGaugeChart: echarts.ECharts | null = null;
+
+const BEAUFORT_SCALE = [
+  { max: 0.3,      level: 0,  label: '静风',   color: '#10b981' },
+  { max: 1.6,      level: 1,  label: '软风',   color: '#22c55e' },
+  { max: 3.4,      level: 2,  label: '轻风',   color: '#4ade80' },
+  { max: 5.5,      level: 3,  label: '微风',   color: '#84cc16' },
+  { max: 8.0,      level: 4,  label: '和风',   color: '#84cc16' },
+  { max: 10.8,     level: 5,  label: '清劲风', color: '#eab308' },
+  { max: 13.9,     level: 6,  label: '强风',   color: '#f97316' },
+  { max: 17.2,     level: 7,  label: '疾风',   color: '#fb923c' },
+  { max: 20.8,     level: 8,  label: '大风',   color: '#ef4444' },
+  { max: 24.5,     level: 9,  label: '烈风',   color: '#dc2626' },
+  { max: 28.5,     level: 10, label: '狂风',   color: '#b91c1c' },
+  { max: 32.7,     level: 11, label: '暴风',   color: '#7c3aed' },
+  { max: Infinity, level: 12, label: '台风',   color: '#6d28d9' },
+];
+
+const windBeaufort = computed(() => {
+  const ms = weatherData.wind_speed_ms;
+  if (ms === null) return { level: '--' as string | number, label: '未知', color: '#94a3b8' };
+  return BEAUFORT_SCALE.find(b => ms < b.max) ?? BEAUFORT_SCALE[BEAUFORT_SCALE.length - 1];
+});
+
+const windArrowRotation = computed(() => weatherData.wind_direction_deg ?? 0);
+
+const windDirectionLabel = computed(() => {
+  if (weatherData.wind_direction_deg === null) return '未知';
+  const dirs = ['北','北北东','东北','东北东','东','东南东','东南','南南东','南','南南西','西南','西南西','西','西北西','西北','北北西'];
+  return dirs[Math.round(weatherData.wind_direction_deg / 22.5) % 16];
+});
+
+const buildWindGaugeOption = (speed: number | null): object => {
+  const s = speed ?? 0;
+  return {
+    backgroundColor: 'transparent',
+    series: [{
+      type: 'gauge',
+      startAngle: 210,
+      endAngle: -30,
+      min: 0,
+      max: 30,
+      splitNumber: 6,
+      radius: '85%',
+      center: ['50%', '58%'],
+      axisLine: {
+        lineStyle: {
+          width: 14,
+          color: [
+            [0.167, '#22c55e'],
+            [0.333, '#84cc16'],
+            [0.5,   '#eab308'],
+            [0.667, '#f97316'],
+            [0.833, '#ef4444'],
+            [1.0,   '#7c3aed'],
+          ]
+        }
+      },
+      axisTick: { show: false },
+      splitLine: {
+        length: 10,
+        lineStyle: { color: 'rgba(0,0,0,0.15)', width: 2 }
+      },
+      axisLabel: {
+        color: '#475569',
+        fontSize: 10,
+        distance: 16,
+        formatter: (v: number) => `${v}`,
+      },
+      pointer: {
+        length: '62%',
+        width: 5,
+        itemStyle: { color: 'auto' }
+      },
+      detail: {
+        valueAnimation: true,
+        formatter: (v: number) => speed !== null ? `${v} m/s` : '--',
+        color: '#0f172a',
+        fontSize: 18,
+        fontWeight: 700,
+        offsetCenter: [0, '45%'],
+      },
+      data: [{ value: s }]
+    }]
+  };
+};
+
+const initWindGauge = () => {
+  if (!windGaugeRef.value) return;
+  windGaugeChart?.dispose();
+  windGaugeChart = echarts.init(windGaugeRef.value, null, { renderer: 'svg' });
+  windGaugeChart.setOption(buildWindGaugeOption(weatherData.wind_speed_ms));
+};
+
+watch(
+  () => weatherData.wind_speed_ms,
+  (ms: number | null) => windGaugeChart?.setOption(buildWindGaugeOption(ms))
+);
+
+onUnmounted(() => {
+  windGaugeChart?.dispose();
+  windGaugeChart = null;
 });
 
 const schedulerConfig = reactive({
@@ -617,8 +819,9 @@ const fetchWeatherData = async () => {
   try {
     const res = await axios.get(`${API_BASE_URL}/agent/weather-status`);
     if (res.data.status === 'success') {
-      weatherData.wind_speed_ms = res.data.wind_speed_ms;
-      weatherData.wind_bin = res.data.wind_bin;
+      weatherData.wind_speed_ms = res.data.wind_speed_ms ?? null;
+      weatherData.wind_bin = res.data.wind_bin ?? '';
+      weatherData.wind_direction_deg = res.data.wind_direction_deg ?? null;
     }
   } catch (error) {
     console.error("读取气象失败", error);
@@ -695,7 +898,8 @@ const stopSchedule = async () => {
 };
 
 onMounted(async () => {
-  fetchWeatherData();
+  await fetchWeatherData();
+  initWindGauge();
   await fetchScheduleConfig();
   await fetchThresholds();
 });
@@ -1108,6 +1312,7 @@ onMounted(async () => {
   .building-grid,
   .summary-card,
   .weather-summary-grid,
+  .wind-visual-grid,
   .weather-action-layout,
   .limit-grid,
   .rule-grid,
@@ -1119,5 +1324,215 @@ onMounted(async () => {
   .channel-header {
     flex-direction: column;
   }
+
+  .wind-compass-card .compass-svg {
+    max-width: 150px;
+  }
+}
+
+/* ── Wind Visual Panel ─────────────────────────────────────────────── */
+
+.wind-visual-grid {
+  display: grid;
+  grid-template-columns: 220px 190px 1fr;
+  gap: 16px;
+  margin-bottom: 16px;
+  align-items: start;
+}
+
+.wind-gauge-card,
+.wind-compass-card {
+  background: #fff;
+  border: 1px solid #bfdbfe;
+  border-radius: 16px;
+  padding: 14px 12px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.gauge-eyebrow {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  color: #2563eb;
+  text-transform: uppercase;
+  align-self: flex-start;
+}
+
+.gauge-canvas {
+  width: 100%;
+  height: 175px;
+}
+
+.gauge-badge-row {
+  margin-top: 4px;
+}
+
+.beaufort-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.compass-svg {
+  width: 100%;
+  max-width: 174px;
+  height: auto;
+}
+
+.compass-dir-label {
+  margin: 6px 0 0;
+  font-size: 14px;
+  font-weight: 700;
+  color: #1e40af;
+}
+
+.wind-info-stack {
+  background: #fff;
+  border: 1px solid #bfdbfe;
+  border-radius: 16px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  justify-content: center;
+}
+
+.wind-info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 9px 12px;
+  background: rgba(239, 246, 255, 0.65);
+  border-radius: 10px;
+}
+
+.wind-info-row span {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.wind-info-row strong {
+  color: #1e3a8a;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+/* ── Threshold Zone Visualization ──────────────────────────────────── */
+
+.threshold-zone-section {
+  margin-top: 16px;
+  padding: 14px 16px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+}
+
+.tz-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.tz-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.tz-note {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.tz-bar-outer {
+  position: relative;
+  padding-bottom: 44px;
+}
+
+.tz-bar {
+  display: flex;
+  height: 32px;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.08);
+}
+
+.tz-seg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.tz-seg span {
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.92);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+/* Fixed proportions: out of 2.6 total units */
+.tz-over { flex: 0.3; }
+.tz-lv2  { flex: 0.25; }
+.tz-lv3  { flex: 0.25; }
+.tz-safe { flex: 1.0; }
+
+/* Left-side segments */
+.tz-seg:nth-child(1) { background: linear-gradient(90deg, #dc2626, #ef4444); }
+.tz-seg:nth-child(2) { background: linear-gradient(90deg, #ea580c, #f97316); }
+.tz-seg:nth-child(3) { background: linear-gradient(90deg, #d97706, #fbbf24); }
+.tz-seg:nth-child(4) { background: linear-gradient(90deg, #16a34a, #22c55e, #16a34a); }
+/* Right-side segments (mirror) */
+.tz-seg:nth-child(5) { background: linear-gradient(90deg, #fbbf24, #d97706); }
+.tz-seg:nth-child(6) { background: linear-gradient(90deg, #f97316, #ea580c); }
+.tz-seg:nth-child(7) { background: linear-gradient(90deg, #ef4444, #dc2626); }
+
+.tz-markers {
+  position: relative;
+  height: 44px;
+}
+
+.tz-mark {
+  position: absolute;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  top: 0;
+}
+
+.tz-mark-line {
+  width: 1.5px;
+  height: 10px;
+  background: #475569;
+}
+
+.tz-mark-val {
+  font-size: 10px;
+  font-weight: 700;
+  color: #0f172a;
+  white-space: nowrap;
+  margin-top: 2px;
+}
+
+.tz-mark-sub {
+  font-size: 9px;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.tz-mark-mid .tz-mark-line {
+  background: #15803d;
+}
+
+.tz-mark-mid .tz-mark-val {
+  color: #15803d;
 }
 </style>
