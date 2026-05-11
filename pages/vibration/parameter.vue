@@ -355,58 +355,7 @@
         </div>
       </section>
 
-      <section class="panel">
-        <div class="panel-heading">
-          <div>
-            <p class="eyebrow">派生规则</p>
-            <h2>三级预警规则</h2>
-          </div>
-        </div>
-
-        <div class="note-card">
-          预警等级按阈值中心值派生，中心值 = (上限 + 下限) / 2。
-          一级预警 = limit 的 100%，二级预警 = 75%，三级预警 = 50%。这里的级别编号表示提醒灵敏度：一级最松弛，三级最敏感。邮件发送频率由后端统一控制。
-        </div>
-
-        <div class="rule-grid">
-          <article v-for="rule in levelRuleCards" :key="rule.level" class="rule-card" :class="`rule-card-${rule.level}`">
-            <div class="rule-head">
-              <strong>{{ rule.label }}</strong>
-              <span>{{ rule.ratioText }}</span>
-            </div>
-            <p>{{ rule.description }}</p>
-            <div class="metric-row sub-row">
-              <span>通知策略</span>
-              <span>{{ rule.cooldownText }}</span>
-            </div>
-          </article>
-        </div>
-
-        <div class="derived-grid">
-          <article v-for="channel in derivedThresholdCards" :key="channel.key" class="derived-card">
-            <div class="panel-title">
-              <h4>{{ channel.label }}</h4>
-              <span>自动派生</span>
-            </div>
-            <div class="metric-row">
-              <span>基准阈值</span>
-              <strong>{{ formatValue(channel.baseThreshold) }}</strong>
-            </div>
-            <div class="metric-row sub-row">
-              <span class="derived-level-label derived-level1">一级预警（100%）</span>
-              <span>{{ formatValue(channel.level1Threshold) }}</span>
-            </div>
-            <div class="metric-row sub-row">
-              <span class="derived-level-label derived-level2">二级预警（75%）</span>
-              <span>{{ formatValue(channel.level2Threshold) }}</span>
-            </div>
-            <div class="metric-row sub-row">
-              <span class="derived-level-label derived-level3">三级预警（50%）</span>
-              <span>{{ formatValue(channel.level3Threshold) }}</span>
-            </div>
-          </article>
-        </div>
-      </section>
+      
     </UForm>
   </div>
 </template>
