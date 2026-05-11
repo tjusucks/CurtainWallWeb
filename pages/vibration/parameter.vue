@@ -128,6 +128,56 @@
         </div>
       </section>
 
+      <!-- 全传感器阈值总览 -->
+      <section class="panel overview-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow overview-eyebrow">阈值总览</p>
+            <h2>全传感器阈值总览</h2>
+          </div>
+          <div class="overview-header-right">
+            <span class="overview-loaded-tag" :class="{ 'all-loaded': overviewLoadedCount === deviceOptions.length }">
+              已加载 {{ overviewLoadedCount }} / {{ deviceOptions.length }}
+            </span>
+            <UButton size="sm" color="primary" :loading="loadingOverview" @click="fetchAllThresholds">
+              加载全部传感器阈值
+            </UButton>
+          </div>
+        </div>
+
+        <div class="overview-legend">
+          <span class="legend-dot" style="background:#3b82f6"></span><span>衷和楼·加速度计</span>
+          <span class="legend-dot" style="background:#f59e0b"></span><span>衷和楼·应变计</span>
+          <span class="legend-dot" style="background:#10b981"></span><span>安楼·加速度计</span>
+          <span class="legend-dot" style="background:#8b5cf6"></span><span>安楼·应变计</span>
+        </div>
+
+        <div v-if="overviewLoadedCount === 0 && !loadingOverview" class="overview-empty">
+          <p>点击「加载全部传感器阈值」后，图表将展示所有传感器各通道的上下限范围，竖线为中心偏移量。</p>
+        </div>
+        <div v-if="loadingOverview && overviewLoadedCount === 0" class="overview-loading">
+          <span>加载中，正在批量拉取各传感器阈值……</span>
+        </div>
+
+        <div v-if="overviewLoadedCount > 0" ref="overviewChartRef" class="overview-chart-canvas"></div>
+
+        <div class="overview-status-grid" v-if="overviewLoadedCount > 0 || loadingOverview">
+          <div
+            v-for="device in deviceOptions"
+            :key="device.value"
+            class="overview-status-item"
+            :class="{
+              'st-loaded':  overviewSnapshots[device.value]?.loaded,
+              'st-error':   overviewSnapshots[device.value]?.error,
+              'st-loading': overviewSnapshots[device.value]?.loading,
+            }"
+          >
+            <span class="st-dot"></span>
+            <span>{{ device.label }}</span>
+          </div>
+        </div>
+      </section>
+
       <section class="panel">
         <div class="panel-heading">
           <div>
@@ -188,7 +238,7 @@
       <section class="panel">
         <div class="panel-heading">
           <div>
-            <p class="eyebrow">真实业务闭环</p>
+            <p class="eyebrow">人工设定阈值</p>
             <h2>查询与保存人工上下限</h2>
           </div>
         </div>
@@ -362,7 +412,7 @@
 </template>
 
 <script setup lang="ts">
-import { computed, onMounted, onUnmounted, reactive, ref, watch } from "vue";
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from "vue";
 import { useRouter } from "vue-router";
 import axios from "axios";
 import * as echarts from 'echarts';
@@ -734,7 +784,7 @@ const windDirectionLabel = computed(() => {
   return dirs[Math.round(weatherData.wind_direction_deg / 22.5) % 16];
 });
 
-const buildWindGaugeOption = (speed: number | null): object => {
+const buildWindGaugeOption = (speed: number | null): any => {
   const s = speed ?? 0;
   return {
     backgroundColor: 'transparent',
@@ -804,6 +854,8 @@ watch(
 onUnmounted(() => {
   windGaugeChart?.dispose();
   windGaugeChart = null;
+  overviewChart?.dispose();
+  overviewChart = null;
 });
 
 const schedulerConfig = reactive({
@@ -895,6 +947,197 @@ const stopSchedule = async () => {
   } catch (error) {
     ElMessage.error("停止任务失败");
   }
+};
+
+
+// ── All-Device Threshold Overview ──
+interface OverviewChannelData {
+  lower: number;
+  upper: number;
+  offset: number;
+  threshold: number;
+}
+interface DeviceOverviewState {
+  loaded: boolean;
+  loading: boolean;
+  error: boolean;
+  channels: Partial<Record<ChannelKey, OverviewChannelData>>;
+}
+const overviewSnapshots = reactive<Record<string, DeviceOverviewState>>(
+  Object.fromEntries(deviceOptions.map(d => [d.value, { loaded: false, loading: false, error: false, channels: {} }]))
+);
+const overviewChartRef = ref<HTMLDivElement | null>(null);
+let overviewChart: echarts.ECharts | null = null;
+const loadingOverview = ref(false);
+
+const overviewLoadedCount = computed(() =>
+  deviceOptions.filter(d => overviewSnapshots[d.value]?.loaded).length
+);
+
+interface OverviewRow {
+  label: string;
+  lower: number;
+  upper: number;
+  offset: number;
+  color: string;
+}
+
+const OVERVIEW_ROW_HEIGHT = 22;
+const OVERVIEW_BAR_WIDTH = 12;
+const OVERVIEW_CHART_PADDING = 44;
+
+const OVERVIEW_COLORS: Record<string, string> = {
+  '衷和楼-accelerometer': '#3b82f6',
+  '衷和楼-strainGauge':   '#f59e0b',
+  '安楼-accelerometer':   '#10b981',
+  '安楼-strainGauge':     '#8b5cf6',
+};
+
+const overviewChartRows = computed<OverviewRow[]>(() => {
+  const rows: OverviewRow[] = [];
+  const chLabels: Record<ChannelKey, string> = { x: 'X', y: 'Y', z: 'Z', ch1: 'Ch1', ch2: 'Ch2' };
+  for (const device of deviceOptions) {
+    const snap = overviewSnapshots[device.value];
+    if (!snap?.loaded) continue;
+    const channels: ChannelKey[] = device.type === 'accelerometer' ? ['x', 'y', 'z'] : ['ch1', 'ch2'];
+    const color = OVERVIEW_COLORS[`${device.building}-${device.type}`] ?? '#64748b';
+    for (const ch of channels) {
+      const d = snap.channels[ch];
+      if (!d) continue;
+      rows.push({ label: `${device.label} · ${chLabels[ch]}`, lower: d.lower, upper: d.upper, offset: d.offset, color });
+    }
+  }
+  return rows;
+});
+
+const buildOverviewChartOption = (rows: OverviewRow[]): any => {
+  if (rows.length === 0) return {};
+  const allVals = rows.flatMap(r => [r.lower, r.upper]);
+  const xMin = Math.min(...allVals);
+  const xMax = Math.max(...allVals);
+  const xPad = Math.max((xMax - xMin) * 0.08, 0.0001);
+
+  // 浮动条形图：透明基座 + 彩色区间条
+  const baseData   = rows.map(r => r.lower);
+  const rangeData  = rows.map(r => ({ value: r.upper - r.lower, itemStyle: { color: r.color, opacity: 0.78 } }));
+  // scatter 必须用 [xValue, categoryIndex] 二元组，否则横向 bar 图中会错误占位
+  const centerData = rows.map((r, i) => [r.offset, i]);
+
+  return {
+    backgroundColor: 'transparent',
+    tooltip: {
+      trigger: 'axis',
+      axisPointer: { type: 'shadow' },
+      formatter: (paramsList: any[]) => {
+        const idx = paramsList[0]?.dataIndex ?? 0;
+        const row = rows[idx];
+        if (!row) return '';
+        return `<b>${row.label}</b><br/>上限：${row.upper.toFixed(6)}<br/>下限：${row.lower.toFixed(6)}<br/>中心：${row.offset.toFixed(6)}<br/>范围幅：${(row.upper - row.lower).toFixed(6)}`;
+      },
+    },
+    animation: false,
+    grid: { left: 8, right: 20, top: 4, bottom: 20, containLabel: true },
+    xAxis: {
+      type: 'value',
+      min: xMin - xPad,
+      max: xMax + xPad,
+      axisLabel: { color: '#64748b', fontSize: 10, formatter: (v: number) => v.toFixed(3) },
+      splitLine: { lineStyle: { color: '#e2e8f0' } },
+    },
+    yAxis: {
+      type: 'category',
+      data: rows.map(r => r.label),
+      axisLabel: { color: '#334155', fontSize: 11 },
+      inverse: true,
+    },
+    series: [
+      // 1. 透明基座，把条形图"抬"到下限位置
+      {
+        type: 'bar',
+        stack: 'range',
+        barWidth: OVERVIEW_BAR_WIDTH,
+        silent: true,
+        itemStyle: { color: 'transparent' },
+        data: baseData,
+      },
+      // 2. 彩色区间条（上限 - 下限）
+      {
+        type: 'bar',
+        stack: 'range',
+        barWidth: OVERVIEW_BAR_WIDTH,
+        data: rangeData,
+        label: { show: false },
+        emphasis: { itemStyle: { opacity: 1 } },
+      },
+      // 3. 中心偏移量：用散点标记竖线
+      {
+        type: 'scatter',
+        symbol: 'line',
+        symbolSize: [2, OVERVIEW_BAR_WIDTH + 4],
+        symbolRotate: 90,
+        itemStyle: { color: '#0f172a', opacity: 0.8 },
+        data: centerData,
+        tooltip: { show: false },
+        zlevel: 2,
+      },
+    ],
+  };
+};
+
+const initOverviewChart = () => {
+  if (!overviewChartRef.value) return;
+  overviewChart?.dispose();
+  overviewChart = echarts.init(overviewChartRef.value);
+};
+
+const updateOverviewChart = async () => {
+  if (!overviewChart) return;
+  const rows = overviewChartRows.value;
+  if (rows.length === 0) return;
+  const h = Math.max(240, rows.length * OVERVIEW_ROW_HEIGHT + OVERVIEW_CHART_PADDING);
+  if (overviewChartRef.value) overviewChartRef.value.style.height = `${h}px`;
+  // 等 DOM 应用新高度后再 resize，否则 ECharts 仍按旧尺寸布局留下空白
+  await nextTick();
+  overviewChart.resize({ height: h });
+  overviewChart.setOption(buildOverviewChartOption(rows), true);
+};
+
+// 当容器被 v-if 真正挂载后再初始化；之后数据刷新时也保持更新
+watch(overviewChartRef, async (el) => {
+  if (el) { await nextTick(); initOverviewChart(); await updateOverviewChart(); }
+  else { overviewChart?.dispose(); overviewChart = null; }
+});
+
+watch(overviewChartRows, () => {
+  if (overviewChart) nextTick(updateOverviewChart);
+}, { deep: true });
+
+const fetchAllThresholds = async () => {
+  loadingOverview.value = true;
+  deviceOptions.forEach(d => {
+    overviewSnapshots[d.value].loading = true;
+    overviewSnapshots[d.value].error   = false;
+  });
+  await Promise.allSettled(deviceOptions.map(async (device) => {
+    try {
+      const res = await axios.get(`${API_BASE_URL}/data/get_threshold_or_offset`, {
+        params: { device_name: device.value, device_type: device.type },
+      });
+      const data = res.data?.data ?? {};
+      const chs: Partial<Record<ChannelKey, OverviewChannelData>> = {};
+      const keys: ChannelKey[] = device.type === 'accelerometer' ? ['x', 'y', 'z'] : ['ch1', 'ch2'];
+      for (const ch of keys) {
+        const off = roundValue(Number(data[`${ch}_offset`] ?? 0));
+        const lim = roundValue(Math.abs(Number(data[`${ch}_limit`] ?? 0)));
+        chs[ch] = { offset: off, threshold: lim, upper: roundValue(off + lim), lower: roundValue(off - lim) };
+      }
+      overviewSnapshots[device.value] = { loaded: true, loading: false, error: false, channels: chs };
+    } catch {
+      overviewSnapshots[device.value].loading = false;
+      overviewSnapshots[device.value].error   = true;
+    }
+  }));
+  loadingOverview.value = false;
 };
 
 onMounted(async () => {
@@ -1535,4 +1778,104 @@ onMounted(async () => {
 .tz-mark-mid .tz-mark-val {
   color: #15803d;
 }
+
+/* ── Overview Panel ── */
+.overview-eyebrow { color: #7c3aed; }
+
+.overview-panel .panel-heading { align-items: flex-start; }
+
+.overview-header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.overview-loaded-tag {
+  font-size: 12px;
+  color: #64748b;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 2px 10px;
+  white-space: nowrap;
+}
+.overview-loaded-tag.all-loaded {
+  color: #16a34a;
+  background: #dcfce7;
+  border-color: #86efac;
+}
+
+.overview-legend {
+  display: flex;
+  align-items: center;
+  gap: 6px 14px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: #64748b;
+}
+.legend-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
+}
+
+.overview-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 28px 0;
+  color: #94a3b8;
+  font-size: 14px;
+  text-align: center;
+}
+.overview-loading {
+  padding: 16px 0;
+  text-align: center;
+  color: #64748b;
+  font-size: 13px;
+}
+
+.overview-chart-canvas {
+  width: 100%;
+  min-height: 240px;
+  transition: height 0.3s ease;
+}
+
+.overview-status-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #e2e8f0;
+}
+.overview-status-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #94a3b8;
+}
+.st-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  flex-shrink: 0;
+}
+.overview-status-item.st-loaded .st-dot  { background: #22c55e; }
+.overview-status-item.st-loaded          { color: #374151; }
+.overview-status-item.st-error  .st-dot  { background: #ef4444; }
+.overview-status-item.st-error           { color: #dc2626; }
+.overview-status-item.st-loading .st-dot { background: #f59e0b; animation: pulse-dot 1s infinite; }
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
+}
+
 </style>
