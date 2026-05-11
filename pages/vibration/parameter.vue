@@ -312,17 +312,17 @@
           <div v-if="currentLimits[channel.key].threshold > 0" class="threshold-zone-section">
             <div class="tz-header">
               <span class="tz-title">阈值区间可视化</span>
-              <span class="tz-note">色条直观展示三级预警区间分布</span>
+              <span class="tz-note">编号表示提醒灵敏度：三级最早触发，一级最晚触发</span>
             </div>
             <div class="tz-bar-outer">
               <div class="tz-bar">
-                <div class="tz-seg tz-over" title="超出一级阈值（危险）"><span>超限</span></div>
+                <div class="tz-seg tz-over" title="一级预警（达到或超过 100% 阈值，最晚触发）"><span>L1</span></div>
                 <div class="tz-seg tz-lv2"  title="二级预警（75%~100%）"><span>L2</span></div>
-                <div class="tz-seg tz-lv3"  title="三级预警（50%~75%）"><span>L3</span></div>
+                <div class="tz-seg tz-lv1"  title="三级预警（50%~75%，最早触发）"><span>L3</span></div>
                 <div class="tz-seg tz-safe" title="安全区（0~50% 偏差）"><span>安全区</span></div>
-                <div class="tz-seg tz-lv3"  title="三级预警（50%~75%）"><span>L3</span></div>
+                <div class="tz-seg tz-lv1"  title="三级预警（50%~75%，最早触发）"><span>L3</span></div>
                 <div class="tz-seg tz-lv2"  title="二级预警（75%~100%）"><span>L2</span></div>
-                <div class="tz-seg tz-over" title="超出一级阈值（危险）"><span>超限</span></div>
+                <div class="tz-seg tz-over" title="一级预警（达到或超过 100% 阈值，最晚触发）"><span>L1</span></div>
               </div>
               <div class="tz-markers">
                 <div class="tz-mark" style="left: 11.54%">
@@ -365,11 +365,11 @@
 
         <div class="note-card">
           预警等级按阈值中心值派生，中心值 = (上限 + 下限) / 2。
-          一级预警 = limit 的 100%，二级预警 = 75%，三级预警 = 50%。邮件发送频率由后端统一控制。
+          一级预警 = limit 的 100%，二级预警 = 75%，三级预警 = 50%。这里的级别编号表示提醒灵敏度：一级最松弛，三级最敏感。邮件发送频率由后端统一控制。
         </div>
 
         <div class="rule-grid">
-          <article v-for="rule in levelRuleCards" :key="rule.level" class="rule-card">
+          <article v-for="rule in levelRuleCards" :key="rule.level" class="rule-card" :class="`rule-card-${rule.level}`">
             <div class="rule-head">
               <strong>{{ rule.label }}</strong>
               <span>{{ rule.ratioText }}</span>
@@ -393,15 +393,15 @@
               <strong>{{ formatValue(channel.baseThreshold) }}</strong>
             </div>
             <div class="metric-row sub-row">
-              <span>一级预警（100%）</span>
+              <span class="derived-level-label derived-level1">一级预警（100%）</span>
               <span>{{ formatValue(channel.level1Threshold) }}</span>
             </div>
             <div class="metric-row sub-row">
-              <span>二级预警（75%）</span>
+              <span class="derived-level-label derived-level2">二级预警（75%）</span>
               <span>{{ formatValue(channel.level2Threshold) }}</span>
             </div>
             <div class="metric-row sub-row">
-              <span>三级预警（50%）</span>
+              <span class="derived-level-label derived-level3">三级预警（50%）</span>
               <span>{{ formatValue(channel.level3Threshold) }}</span>
             </div>
           </article>
@@ -517,21 +517,21 @@ const levelRuleCards = [
     level: "level1",
     label: "一级预警",
     ratioText: "生效阈值的 100%",
-    description: "达到当前人工生效阈值时触发，等级最高。",
+    description: "最松弛的一档，只有达到完整阈值时才触发，因此属于最晚提醒。",
     cooldownText: "邮件频率由后端统一硬编码控制",
   },
   {
     level: "level2",
     label: "二级预警",
     ratioText: "生效阈值的 75%",
-    description: "在正式超过人工阈值前提前提醒，作为中等级别预警。",
+    description: "作为中间灵敏度档位，在接近完整阈值前给出提前提醒。",
     cooldownText: "邮件频率由后端统一硬编码控制",
   },
   {
     level: "level3",
     label: "三级预警",
     ratioText: "生效阈值的 50%",
-    description: "用于最早期提醒，便于在趋势积累前发现风险。",
+    description: "最敏感的一档，偏差达到一半阈值就会触发，用于最早期预警。",
     cooldownText: "邮件频率由后端统一硬编码控制",
   },
 ];
@@ -1504,6 +1504,37 @@ onMounted(async () => {
   margin-bottom: 14px;
 }
 
+.rule-card-level1 {
+  background: linear-gradient(180deg, #eff6ff 0%, #ffffff 100%);
+  border-color: #bfdbfe;
+}
+
+.rule-card-level2 {
+  background: linear-gradient(180deg, #fffbeb 0%, #ffffff 100%);
+  border-color: #fde68a;
+}
+
+.rule-card-level3 {
+  background: linear-gradient(180deg, #fef2f2 0%, #ffffff 100%);
+  border-color: #fecaca;
+}
+
+.derived-level-label {
+  font-weight: 700;
+}
+
+.derived-level1 {
+  color: #2563eb;
+}
+
+.derived-level2 {
+  color: #d97706;
+}
+
+.derived-level3 {
+  color: #dc2626;
+}
+
 .panel-title h4,
 .rule-head strong {
   margin: 0;
@@ -1724,18 +1755,18 @@ onMounted(async () => {
 /* Fixed proportions: out of 2.6 total units */
 .tz-over { flex: 0.3; }
 .tz-lv2  { flex: 0.25; }
-.tz-lv3  { flex: 0.25; }
+.tz-lv1  { flex: 0.25; }
 .tz-safe { flex: 1.0; }
 
 /* Left-side segments */
-.tz-seg:nth-child(1) { background: linear-gradient(90deg, #dc2626, #ef4444); }
+.tz-seg:nth-child(1) { background: linear-gradient(90deg, #2563eb, #60a5fa); }
 .tz-seg:nth-child(2) { background: linear-gradient(90deg, #ea580c, #f97316); }
-.tz-seg:nth-child(3) { background: linear-gradient(90deg, #d97706, #fbbf24); }
+.tz-seg:nth-child(3) { background: linear-gradient(90deg, #dc2626, #ef4444); }
 .tz-seg:nth-child(4) { background: linear-gradient(90deg, #16a34a, #22c55e, #16a34a); }
 /* Right-side segments (mirror) */
-.tz-seg:nth-child(5) { background: linear-gradient(90deg, #fbbf24, #d97706); }
+.tz-seg:nth-child(5) { background: linear-gradient(90deg, #ef4444, #dc2626); }
 .tz-seg:nth-child(6) { background: linear-gradient(90deg, #f97316, #ea580c); }
-.tz-seg:nth-child(7) { background: linear-gradient(90deg, #ef4444, #dc2626); }
+.tz-seg:nth-child(7) { background: linear-gradient(90deg, #60a5fa, #2563eb); }
 
 .tz-markers {
   position: relative;
