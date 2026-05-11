@@ -36,6 +36,11 @@ const getAuthHeaders = (): Record<string, string> => {
   return {}
 }
 
+const getCorrosionApiBase = () => {
+  const config = useRuntimeConfig()
+  return (config.public.corrosionApiBase as string) || 'http://8.153.161.229:18000'
+}
+
 interface ModelItem {
   key: string
   name: string
@@ -158,7 +163,10 @@ export function useCorrosion() {
 
   const fetchModels = async () => {
     try {
-      const res = await $fetch<any>('/api/corrosion/models')
+      const res = await $fetch<any>(`${getCorrosionApiBase()}/models`, {
+        headers: getAuthHeaders(),
+        credentials: 'include'
+      })
       // 兼容嵌套的 data 结构和扁平结构
       const modelsList = res?.data?.models || res?.models
       if (res?.success && modelsList?.length) {
@@ -295,7 +303,7 @@ export function useCorrosion() {
         form.append('max_det', String(params.value.max_det))
 
         try {
-          const res = await $fetch<any>('/api/corrosion/detect', {
+          const res = await $fetch<any>(`${getCorrosionApiBase()}/detect`, {
             method: 'POST',
             body: form,
             headers: getAuthHeaders(),
@@ -372,7 +380,7 @@ export function useCorrosion() {
       form.append('max_det', String(params.value.max_det))
 
       // 1. 提交批量任务
-      const res = await $fetch<any>('/api/corrosion/batch', {
+      const res = await $fetch<any>(`${getCorrosionApiBase()}/detect/batch`, {
         method: 'POST',
         body: form,
         headers: getAuthHeaders(),
@@ -395,7 +403,7 @@ export function useCorrosion() {
       // 2. 轮询批次状态
       const pollBatch = async () => {
         try {
-          const batchRes = await $fetch<any>(`/api/corrosion/batch/${batchNo}`, {
+          const batchRes = await $fetch<any>(`${getCorrosionApiBase()}/history/batches/${batchNo}`, {
             headers: getAuthHeaders(),
             credentials: 'include'
           })
@@ -421,7 +429,7 @@ export function useCorrosion() {
                 // 如果完成了，且没有添加到画廊，则直接使用 batch details 中的路径
                 if (taskStatus === 'done' && !gallery.value.find(g => g.id === t.job_id)) {
                    const config = useRuntimeConfig()
-                   const apiBase = (config.public.apiBase as string) || 'http://127.0.0.1:8000'
+                   const apiBase = (config.public.corrosionApiBase as string) || 'http://8.153.161.229:18000'
                    const baseUrl = apiBase.replace(/\/$/, '')
                    
                    // 构建图片 URL
@@ -505,7 +513,7 @@ export function useCorrosion() {
   const fetchHistory = async (page: number = 1, limit: number = 10, type: 'single' | 'batch' | 'all' = 'all') => {
     historyLoading.value = true
     try {
-      const res = await $fetch<any>('/api/corrosion/history', {
+      const res = await $fetch<any>(`${getCorrosionApiBase()}/history`, {
         method: 'GET',
         params: { page, limit, type },
         headers: getAuthHeaders(),
@@ -539,7 +547,7 @@ export function useCorrosion() {
   const fetchBatchDetails = async (batchNo: string, statusFilter?: string) => {
     batchDetailsLoading.value = true
     try {
-      const res = await $fetch<any>(`/api/corrosion/history/batches/${batchNo}`, {
+      const res = await $fetch<any>(`${getCorrosionApiBase()}/history/batches/${batchNo}`, {
         method: 'GET',
         params: statusFilter ? { status: statusFilter } : {},
         headers: getAuthHeaders(),

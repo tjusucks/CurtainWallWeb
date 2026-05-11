@@ -7,16 +7,7 @@ export default defineNuxtConfig({
   //   '~/plugins/cleanup.js'
   // ],
   ui: {
-    global: true,
-    icons: {
-      dynamic: true,
-      families: {
-        heroicons: true,
-        'simple-icons': true,
-        'material-symbols': true
-      }
-    },
-    colors: ['primary', 'red', 'orange', 'green']
+    global: true
   },
 
   devtools: { enabled: true },
@@ -70,9 +61,11 @@ export default defineNuxtConfig({
     monitorServiceOrigin:
       process.env.NUXT_SERVER_MONITOR_UPSTREAM || 'http://8.159.143.133:8080',
     apiBase: process.env.NUXT_API_BASE_URL || 'http://8.159.143.133:8000',
+    corrosionApiBase: process.env.NUXT_CORROSION_API_BASE_URL || 'http://8.153.161.229:18000',
     benchmarkPath: process.env.BENCHMARK_PATH || '/benchmarks',
     public: {
       apiBase: process.env.NUXT_API_BASE_URL || 'http://8.159.143.133:8000',
+      corrosionApiBase: process.env.NUXT_CORROSION_API_BASE_URL || 'http://8.153.161.229:18000',
       benchmarkPath: process.env.BENCHMARK_PATH || '/benchmarks',
       serverMonitorApiPrefix: process.env.NUXT_PUBLIC_SERVER_MONITOR_PREFIX || '/m-api',
       serverMonitorBase: process.env.NUXT_PUBLIC_SERVER_MONITOR_BASE || ''

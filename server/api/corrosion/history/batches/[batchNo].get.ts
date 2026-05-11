@@ -5,11 +5,20 @@
  * 输出内容: JSON { success: boolean; data?: { batch_info: {...}, tasks: [...] } }
  * 备注: 查看批次下所有图片的检测结果
  */
-import { defineEventHandler, getQuery, getRouterParam, createError } from 'h3'
+import { defineEventHandler, getQuery, getRouterParam, createError, getCookie } from 'h3'
+
+const readToken = (event: any) => {
+  const auth = event.node.req.headers['authorization'] || ''
+  if (typeof auth === 'string' && auth.toLowerCase().startsWith('bearer ')) {
+    return auth.slice(7)
+  }
+  const cookieToken = getCookie(event, 'auth_token')
+  return cookieToken || ''
+}
 
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig()
-  const apiBase = config.public.apiBase || 'http://127.0.0.1:8000'
+  const apiBase = config.public.corrosionApiBase || 'http://8.153.161.229:18000'
   
   // 获取路径参数
   const batchNo = getRouterParam(event, 'batchNo')
@@ -29,6 +38,11 @@ export default defineEventHandler(async (event) => {
   const headers: Record<string, string> = {}
   if (authHeader) {
     headers['Authorization'] = authHeader
+  } else {
+    const token = readToken(event)
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+    }
   }
   
   // 构建 URL

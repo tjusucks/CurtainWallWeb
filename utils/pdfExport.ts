@@ -366,18 +366,20 @@ async function getImageData(url: string): Promise<string | null> {
 
   try {
     let fetchUrl = url
+    const config = useRuntimeConfig()
+    const corrosionApiBase = (config.public.corrosionApiBase as string) || 'http://8.153.161.229:18000'
+    const baseUrl = corrosionApiBase.replace(/\/$/, '')
     
-    // 如果是后端服务器路径（/images/...），通过 Nuxt API 代理访问避免 CORS
+    // 如果是后端服务器路径（/images/...），直接访问腐蚀后端
     if (url.startsWith('/images/') || url.startsWith('images/')) {
-      // 使用相对路径，会自动使用当前域名（localhost:3000）
-      // Nuxt 会将请求代理到后端
-      fetchUrl = `/api/proxy-image?path=${encodeURIComponent(url)}`
+      const normalizedPath = url.startsWith('/') ? url : `/${url}`
+      fetchUrl = `${baseUrl}${normalizedPath}`
     } 
-    // 如果是绝对路径（http://127.0.0.1:8000/images/...），也通过代理
-    else if (url.includes('/images/') && (url.startsWith('http://127.0.0.1') || url.startsWith('http://localhost'))) {
+    // 如果是绝对路径（任意后端域名的 /images/...），也直接切到腐蚀后端
+    else if (url.includes('/images/') && (url.startsWith('http://') || url.startsWith('https://'))) {
       const pathMatch = url.match(/\/images\/.+/)
       if (pathMatch) {
-        fetchUrl = `/api/proxy-image?path=${encodeURIComponent(pathMatch[0])}`
+        fetchUrl = `${baseUrl}${pathMatch[0]}`
       }
     }
     // blob: URL 和其他 http(s): URL 直接访问
