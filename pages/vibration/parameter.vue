@@ -38,33 +38,6 @@
             </div>
           </div>
 
-          <!-- Wind Direction Compass -->
-          <div class="wind-compass-card">
-            <p class="gauge-eyebrow">风向</p>
-            <svg viewBox="0 0 180 180" xmlns="http://www.w3.org/2000/svg" class="compass-svg">
-              <circle cx="90" cy="90" r="84" fill="rgba(219,234,254,0.25)" stroke="#bfdbfe" stroke-width="1.5"/>
-              <circle cx="90" cy="90" r="62" fill="none" stroke="#dbeafe" stroke-width="1" stroke-dasharray="3,5"/>
-              <circle cx="90" cy="90" r="36" fill="rgba(239,246,255,0.3)" stroke="#e0e7ef" stroke-width="1"/>
-              <text x="90" y="14" text-anchor="middle" fill="#1e40af" font-size="13" font-weight="800" font-family="system-ui,sans-serif">N</text>
-              <text x="172" y="94" text-anchor="middle" fill="#64748b" font-size="11" font-weight="600" font-family="system-ui,sans-serif">E</text>
-              <text x="90" y="178" text-anchor="middle" fill="#64748b" font-size="11" font-weight="600" font-family="system-ui,sans-serif">S</text>
-              <text x="8" y="94" text-anchor="middle" fill="#64748b" font-size="11" font-weight="600" font-family="system-ui,sans-serif">W</text>
-              <line x1="149" y1="31" x2="143" y2="37" stroke="#93c5fd" stroke-width="1.5"/>
-              <line x1="149" y1="149" x2="143" y2="143" stroke="#93c5fd" stroke-width="1.5"/>
-              <line x1="31" y1="149" x2="37" y2="143" stroke="#93c5fd" stroke-width="1.5"/>
-              <line x1="31" y1="31" x2="37" y2="37" stroke="#93c5fd" stroke-width="1.5"/>
-              <line x1="90" y1="26" x2="90" y2="154" stroke="#e2e8f0" stroke-width="1"/>
-              <line x1="26" y1="90" x2="154" y2="90" stroke="#e2e8f0" stroke-width="1"/>
-              <g :transform="`rotate(${windArrowRotation}, 90, 90)`">
-                <polygon points="90,16 84,90 90,76 96,90" fill="#3b82f6" opacity="0.92"/>
-                <polygon points="90,164 84,90 90,104 96,90" fill="#cbd5e1" opacity="0.85"/>
-              </g>
-              <circle cx="90" cy="90" r="8" fill="white" stroke="#3b82f6" stroke-width="2.5"/>
-              <circle cx="90" cy="90" r="3.5" fill="#3b82f6"/>
-            </svg>
-            <p class="compass-dir-label">{{ windDirectionLabel }}</p>
-          </div>
-
           <!-- Wind Info Stack -->
           <div class="wind-info-stack">
             <div class="wind-info-row">
@@ -693,11 +666,9 @@ const selectDevice = async (device: DeviceOption) => {
 const weatherData = reactive<{
   wind_speed_ms: number | null;
   wind_bin: string;
-  wind_direction_deg: number | null;
 }>({
   wind_speed_ms: null,
   wind_bin: '',
-  wind_direction_deg: null,
 });
 
 const windGaugeRef = ref<HTMLDivElement | null>(null);
@@ -723,14 +694,6 @@ const windBeaufort = computed(() => {
   const ms = weatherData.wind_speed_ms;
   if (ms === null) return { level: '--' as string | number, label: '未知', color: '#94a3b8' };
   return BEAUFORT_SCALE.find(b => ms < b.max) ?? BEAUFORT_SCALE[BEAUFORT_SCALE.length - 1];
-});
-
-const windArrowRotation = computed(() => weatherData.wind_direction_deg ?? 0);
-
-const windDirectionLabel = computed(() => {
-  if (weatherData.wind_direction_deg === null) return '未知';
-  const dirs = ['北','北北东','东北','东北东','东','东南东','东南','南南东','南','南南西','西南','西南西','西','西北西','西北','北北西'];
-  return dirs[Math.round(weatherData.wind_direction_deg / 22.5) % 16];
 });
 
 const buildWindGaugeOption = (speed: number | null): any => {
@@ -822,7 +785,6 @@ const fetchWeatherData = async () => {
     if (res.data.status === 'success') {
       weatherData.wind_speed_ms = res.data.wind_speed_ms ?? null;
       weatherData.wind_bin = res.data.wind_bin ?? '';
-      weatherData.wind_direction_deg = res.data.wind_direction_deg ?? null;
     }
   } catch (error) {
     console.error("读取气象失败", error);
@@ -1547,24 +1509,19 @@ onMounted(async () => {
   .channel-header {
     flex-direction: column;
   }
-
-  .wind-compass-card .compass-svg {
-    max-width: 150px;
-  }
 }
 
 /* ── Wind Visual Panel ─────────────────────────────────────────────── */
 
 .wind-visual-grid {
   display: grid;
-  grid-template-columns: 220px 190px 1fr;
+  grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
   gap: 16px;
   margin-bottom: 16px;
   align-items: start;
 }
 
-.wind-gauge-card,
-.wind-compass-card {
+.wind-gauge-card {
   background: #fff;
   border: 1px solid #bfdbfe;
   border-radius: 16px;
@@ -1601,19 +1558,6 @@ onMounted(async () => {
   font-weight: 700;
 }
 
-.compass-svg {
-  width: 100%;
-  max-width: 174px;
-  height: auto;
-}
-
-.compass-dir-label {
-  margin: 6px 0 0;
-  font-size: 14px;
-  font-weight: 700;
-  color: #1e40af;
-}
-
 .wind-info-stack {
   background: #fff;
   border: 1px solid #bfdbfe;
@@ -1623,6 +1567,7 @@ onMounted(async () => {
   flex-direction: column;
   gap: 10px;
   justify-content: center;
+  min-height: 100%;
 }
 
 .wind-info-row {
