@@ -241,7 +241,9 @@ export const deriveAlertMetrics = (
   const maxValue = firstNumericField(rawRecord, ["max"]);
 
   if (standardValue === null && actualValue !== null) {
-    if (maxValue !== null && actualValue > maxValue) {
+    if (minValue !== null && maxValue !== null) {
+      standardValue = (minValue + maxValue) / 2;
+    } else if (maxValue !== null && actualValue > maxValue) {
       standardValue = maxValue;
     } else if (minValue !== null && actualValue < minValue) {
       standardValue = minValue;

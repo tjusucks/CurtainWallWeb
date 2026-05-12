@@ -6,46 +6,46 @@
         <UPageGrid class="custom-margin">
           <UPageCard v-for="(module, index) in modulesLine1" :key="index" v-bind="module"
                      @click="checkPermissionAndRedirect(module)" class="hover-effect bg-blue-100 dark:bg-slate-800"   >
-                     <template #icon>
-                      <UIcon :name="module.icon" class="text-[48px] text-primary" />
-                     </template>
+            <template #icon>
+              <UIcon :name="module.icon" class="text-[48px] text-primary" />
+            </template>
 
-                     <template #title>
-                       <span class="text-[24px] font-bold">{{ module.title }}</span>
-                     </template>
+            <template #title>
+              <span class="text-[24px] font-bold">{{ module.title }}</span>
+            </template>
 
-                     <template #description>
-                       <span class="line-clamp-2">{{ module.description }}</span>
-                     </template>
+            <template #description>
+              <span class="line-clamp-2">{{ module.description }}</span>
+            </template>
           </UPageCard>
 
           <UPageCard v-for="(module, index) in modulesLine2" :key="index" v-bind="module"
                      @click="checkPermissionAndRedirect(module)" class="hover-effect bg-blue-100 dark:bg-slate-800" >
-                     <template #icon>
-                      <UIcon :name="module.icon" class="text-[48px] text-primary" />
-                     </template>
+            <template #icon>
+              <UIcon :name="module.icon" class="text-[48px] text-primary" />
+            </template>
 
-                     <template #title>
-                       <span class="text-[24px] font-bold">{{ module.title }}</span>
-                     </template>
+            <template #title>
+              <span class="text-[24px] font-bold">{{ module.title }}</span>
+            </template>
 
-                     <template #description>
-                       <span class="line-clamp-2">{{ module.description }}</span>
-                     </template>
+            <template #description>
+              <span class="line-clamp-2">{{ module.description }}</span>
+            </template>
           </UPageCard>
           <UPageCard v-for="(module, index) in modulesLine3" :key="index" v-bind="module"
                      @click="checkPermissionAndRedirect(module)" class="hover-effect bg-blue-100 dark:bg-slate-800" >
-                     <template #icon>
-                      <UIcon :name="module.icon" class="text-[48px] text-primary" />
-                     </template>
+            <template #icon>
+              <UIcon :name="module.icon" class="text-[48px] text-primary" />
+            </template>
 
-                     <template #title>
-                       <span class="text-[24px] font-bold">{{ module.title }}</span>
-                     </template>
+            <template #title>
+              <span class="text-[24px] font-bold">{{ module.title }}</span>
+            </template>
 
-                     <template #description>
-                       <span class="line-clamp-2">{{ module.description }}</span>
-                     </template>
+            <template #description>
+              <span class="line-clamp-2">{{ module.description }}</span>
+            </template>
           </UPageCard>
           <UPageCard v-for="(module, index) in modulesLine4" :key="index" v-bind="module"
                      @click="checkPermissionAndRedirect(module)" class="hover-effect bg-blue-100 dark:bg-slate-800" >
@@ -78,8 +78,6 @@ const userAuth = ref({});
 //  middleware: "auth",
 //});
 
-
-
 const modulesLine1 = reactive([
 
   {
@@ -96,10 +94,6 @@ const modulesLine1 = reactive([
     permissionKey: "access_system_c",
     icon: "i-simple-icons-affinitypublisher",
   },
-
-
-
-
 ]);
 
 const modulesLine2 = reactive([
@@ -121,7 +115,30 @@ const modulesLine2 = reactive([
 ]);
 
 const modulesLine3 = reactive([
+  {
+    title: "玻璃自爆检测",
+    description: "用于上传玻璃现场图像并完成疑似自爆特征、爆裂形态与破损区域识别。",
+    target_address: "/glass-inspection/crack",
+    permissionKey: "access_system_c",
+    icon: "i-material-symbols-sound-detection-glass-break-rounded",
+  },
+  {
+    title: "幕墙平整度检测",
+    description: "用于上传四组图像并生成平整度结果图与 3D 粒子点云复核视图。",
+    target_address: "/glass-inspection/flatness",
+    permissionKey: "access_system_g",
+    icon: "i-material-symbols-straighten-rounded",
+  },
+])
 
+const modulesLine4 = reactive([
+  {
+    title: "金属幕墙锈蚀污损检测",
+    description: "用于识别和分析金属幕墙锈蚀污损图像",
+    target_address: "/corrosion",
+    permissionKey: "access_system_z",
+    icon: "i-heroicons-fire",
+  },
   {
     title: "用户管理",
     description: "管理用户权限",
@@ -130,14 +147,6 @@ const modulesLine3 = reactive([
     icon: "i-heroicons-book-open",
     disabled: true,
   },
-  {
-    title: "金属幕墙锈蚀污损检测",
-    description: "用于识别和分析金属幕墙锈蚀污损图像",
-    target_address: "/corrosion",
-    permissionKey: "access_system_z",
-    icon: "i-heroicons-fire",
-  },
-
 ]);
 const loadingAuth = ref(true); // 新增loading状态
 
@@ -181,7 +190,8 @@ const checkPermissionAndRedirect = (module) => {
   if (userAuth.value.is_superuser || userAuth.value[module.permissionKey]) {
     router.push({ path: module.target_address });
   } else {
-    ElMessage.error("您没有权限访问此模块");
+    router.push({ path: module.target_address });
+    // ElMessage.error("您没有权限访问此模块");
   }
 };
 </script>
