@@ -18,7 +18,7 @@ export default defineNuxtRouteMiddleware((to, from) => {
         '/segment': 'access_system_f',
         '/smoothnessDetection': 'access_system_g',
         '/resilienceAssessment': 'access_system_h',
-        '/corrosiondetection': 'access_system_z',
+        '/corrosion': 'access_system_z',
         '/userManage': 'is_superuser', // 管理页面仅限管理员
       };
   
@@ -32,7 +32,7 @@ export default defineNuxtRouteMiddleware((to, from) => {
   
       // 未登录时，只允许访问白名单页面
       if (!token && !whitelist.includes(to.path)) {
-          return navigateTo(to.path.startsWith('/corrosion') || to.path.startsWith('/auth') ? '/auth/login' : '/login');
+          return navigateTo('/login');
       }
       // 管理员可以访问所有页面
       if (userAuth.is_superuser) return;
