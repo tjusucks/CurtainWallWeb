@@ -136,7 +136,7 @@ const modulesLine4 = reactive([
     title: "金属幕墙锈蚀污损检测",
     description: "用于识别和分析金属幕墙锈蚀污损图像",
     target_address: "/corrosion",
-    permissionKey: "",
+    permissionKey: "access_system_z",
     icon: "i-heroicons-fire",
   },
   {

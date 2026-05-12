@@ -40,7 +40,7 @@ const mockData = {
 
 export default defineEventHandler(async () => {
   const config = useRuntimeConfig()
-  const apiBase = config.public.apiBase || 'http://127.0.0.1:8000'
+  const apiBase = config.public.corrosionApiBase || 'http://8.153.161.229:18000'
   const benchmarkPath = config.public.benchmarkPath || '/benchmarks'
   const target = `${apiBase}${benchmarkPath}`
 

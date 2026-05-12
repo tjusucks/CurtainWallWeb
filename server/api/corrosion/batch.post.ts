@@ -21,7 +21,7 @@ const readToken = (event: any) => {
 
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig()
-  const apiBase = config.public.apiBase || ''
+  const apiBase = config.public.corrosionApiBase || 'http://8.153.161.229:18000'
 
   // 如果配置了后端地址，直接转发请求
   if (apiBase) {
@@ -93,7 +93,9 @@ export default defineEventHandler(async (event) => {
   const batch = createMockBatch(user.id, user.username, fileParts, {
     model: String(params.model),
     conf: Number(params.conf),
-    iou: Number(params.iou)
+    iou: Number(params.iou),
+    imgsz: Number(params.imgsz ?? 640),
+    max_det: Number(params.max_det ?? 300)
   })
 
   return {
