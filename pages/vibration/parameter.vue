@@ -285,17 +285,18 @@
           <div v-if="currentLimits[channel.key].threshold > 0" class="threshold-zone-section">
             <div class="tz-header">
               <span class="tz-title">阈值区间可视化</span>
-              <span class="tz-note">编号表示提醒灵敏度：三级最早触发，一级最晚触发</span>
+              <span class="tz-note">直接展示当前原始阈值范围，绿色为阈值内，红色为超限区</span>
             </div>
             <div class="tz-bar-outer">
               <div class="tz-bar">
-                <div class="tz-seg tz-over" title="一级预警（达到或超过 100% 阈值，最晚触发）"><span>L1</span></div>
-                <div class="tz-seg tz-lv2"  title="二级预警（75%~100%）"><span>L2</span></div>
-                <div class="tz-seg tz-lv1"  title="三级预警（50%~75%，最早触发）"><span>L3</span></div>
-                <div class="tz-seg tz-safe" title="安全区（0~50% 偏差）"><span>安全区</span></div>
-                <div class="tz-seg tz-lv1"  title="三级预警（50%~75%，最早触发）"><span>L3</span></div>
-                <div class="tz-seg tz-lv2"  title="二级预警（75%~100%）"><span>L2</span></div>
-                <div class="tz-seg tz-over" title="一级预警（达到或超过 100% 阈值，最晚触发）"><span>L1</span></div>
+                <div class="tz-seg tz-over" title="低于下限，属于超限区"><span>超限</span></div>
+                <div
+                  class="tz-seg tz-safe tz-safe-range"
+                  :title="`原始阈值范围：${formatThresholdRange(currentLimits[channel.key].lower, currentLimits[channel.key].upper)}`"
+                >
+                  <span>{{ formatThresholdRange(currentLimits[channel.key].lower, currentLimits[channel.key].upper) }}</span>
+                </div>
+                <div class="tz-seg tz-over" title="高于上限，属于超限区"><span>超限</span></div>
               </div>
               <div class="tz-markers">
                 <div class="tz-mark" style="left: 11.54%">
@@ -339,10 +340,6 @@ import { useRouter } from "vue-router";
 import axios from "axios";
 import * as echarts from 'echarts';
 import { ElMessage } from "element-plus";
-import {
-  defaultVibrationAlertConfig,
-  deriveThresholdsFromBase,
-} from "~/composables/useVibrationAlertConfig";
 
 const API_BASE_URL = "http://8.153.161.229:8009";
 const router = useRouter();
@@ -434,41 +431,6 @@ const visibleChannels = computed(() =>
     : [channelDefinitions.ch1, channelDefinitions.ch2]
 );
 
-const levelRuleCards = [
-  {
-    level: "level1",
-    label: "一级预警",
-    ratioText: "生效阈值的 100%",
-    description: "最松弛的一档，只有达到完整阈值时才触发，因此属于最晚提醒。",
-    cooldownText: "邮件频率由后端统一硬编码控制",
-  },
-  {
-    level: "level2",
-    label: "二级预警",
-    ratioText: "生效阈值的 75%",
-    description: "作为中间灵敏度档位，在接近完整阈值前给出提前提醒。",
-    cooldownText: "邮件频率由后端统一硬编码控制",
-  },
-  {
-    level: "level3",
-    label: "三级预警",
-    ratioText: "生效阈值的 50%",
-    description: "最敏感的一档，偏差达到一半阈值就会触发，用于最早期预警。",
-    cooldownText: "邮件频率由后端统一硬编码控制",
-  },
-];
-
-const derivedThresholdCards = computed(() =>
-  visibleChannels.value.map((channel) => ({
-    key: channel.key,
-    label: channel.label,
-    ...deriveThresholdsFromBase(
-      currentLimits[channel.key].threshold,
-      defaultVibrationAlertConfig
-    ),
-  }))
-);
-
 const devicesByBuilding = (buildingName: string) =>
   deviceOptions.filter((device) => device.building === buildingName);
 
@@ -486,6 +448,9 @@ const formatValue = (value: number | string | null | undefined, digits = 6) => {
 
   return "--";
 };
+
+const formatThresholdRange = (lower: number, upper: number) =>
+  `${formatValue(lower, 3)} ~ ${formatValue(upper, 3)}`;
 
 const formatTimestamp = (date: Date) =>
   `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
@@ -575,7 +540,7 @@ const fetchThresholds = async () => {
 
     currentDataSource.value = "/data/get_threshold_or_offset";
     lastSyncedAt.value = formatTimestamp(new Date());
-    currentStatusText.value = `${selectedDevice.value.label} 的当前上下限已同步，可以继续人工调整，并按固定比例查看三级预警。`;
+    currentStatusText.value = `${selectedDevice.value.label} 的当前上下限已同步，可以继续人工调整，并查看原始阈值范围。`;
   } catch (error) {
     console.error("获取上下限失败:", error);
     currentDataSource.value = "接口获取失败";
@@ -928,19 +893,12 @@ const buildOverviewChartOption = (rows: OverviewRow[]): any => {
   const xMax = Math.max(...allVals);
   const xPad = Math.max((xMax - xMin) * 0.08, 0.0001);
 
-  // 浮动条形图：透明基座 + 彩色区间条
-  const baseData   = rows.map(r => r.lower);
-  const rangeData  = rows.map(r => ({ value: r.upper - r.lower, itemStyle: { color: r.color, opacity: 0.78 } }));
-  // scatter 必须用 [xValue, categoryIndex] 二元组，否则横向 bar 图中会错误占位
-  const centerData = rows.map((r, i) => [r.offset, i]);
-
   return {
     backgroundColor: 'transparent',
     tooltip: {
-      trigger: 'axis',
-      axisPointer: { type: 'shadow' },
-      formatter: (paramsList: any[]) => {
-        const idx = paramsList[0]?.dataIndex ?? 0;
+      trigger: 'item',
+      formatter: (params: any) => {
+        const idx = params.dataIndex ?? 0;
         const row = rows[idx];
         if (!row) return '';
         return `<b>${row.label}</b><br/>上限：${row.upper.toFixed(6)}<br/>下限：${row.lower.toFixed(6)}<br/>中心：${row.offset.toFixed(6)}<br/>范围幅：${(row.upper - row.lower).toFixed(6)}`;
@@ -962,34 +920,57 @@ const buildOverviewChartOption = (rows: OverviewRow[]): any => {
       inverse: true,
     },
     series: [
-      // 1. 透明基座，把条形图"抬"到下限位置
       {
-        type: 'bar',
-        stack: 'range',
-        barWidth: OVERVIEW_BAR_WIDTH,
-        silent: true,
-        itemStyle: { color: 'transparent' },
-        data: baseData,
-      },
-      // 2. 彩色区间条（上限 - 下限）
-      {
-        type: 'bar',
-        stack: 'range',
-        barWidth: OVERVIEW_BAR_WIDTH,
-        data: rangeData,
-        label: { show: false },
-        emphasis: { itemStyle: { opacity: 1 } },
-      },
-      // 3. 中心偏移量：用散点标记竖线
-      {
-        type: 'scatter',
-        symbol: 'line',
-        symbolSize: [2, OVERVIEW_BAR_WIDTH + 4],
-        symbolRotate: 90,
-        itemStyle: { color: '#0f172a', opacity: 0.8 },
-        data: centerData,
-        tooltip: { show: false },
-        zlevel: 2,
+        type: 'custom',
+        coordinateSystem: 'cartesian2d',
+        data: rows.map(r => [r.lower, r.upper, r.offset]),
+        renderItem: (params: any, api: any) => {
+          const lower = Number(api.value(0));
+          const upper = Number(api.value(1));
+          const offset = Number(api.value(2));
+          const y = api.coord([0, params.dataIndex])[1];
+          const lowerPoint = api.coord([lower, params.dataIndex]);
+          const upperPoint = api.coord([upper, params.dataIndex]);
+          const centerPoint = api.coord([offset, params.dataIndex]);
+          const left = Math.min(lowerPoint[0], upperPoint[0]);
+          const width = Math.max(2, Math.abs(upperPoint[0] - lowerPoint[0]));
+          const barHeight = Math.max(OVERVIEW_BAR_WIDTH, api.size([0, 1])[1] * 0.48);
+          const color = rows[params.dataIndex]?.color ?? '#64748b';
+
+          return {
+            type: 'group',
+            children: [
+              {
+                type: 'rect',
+                shape: {
+                  x: left,
+                  y: y - barHeight / 2,
+                  width,
+                  height: barHeight,
+                  r: 3,
+                },
+                style: {
+                  fill: color,
+                  opacity: 0.78,
+                },
+              },
+              {
+                type: 'line',
+                shape: {
+                  x1: centerPoint[0],
+                  y1: y - barHeight / 2 - 2,
+                  x2: centerPoint[0],
+                  y2: y + barHeight / 2 + 2,
+                },
+                style: {
+                  stroke: '#0f172a',
+                  lineWidth: 2,
+                  opacity: 0.85,
+                },
+              },
+            ],
+          };
+        },
       },
     ],
   };
@@ -1377,21 +1358,13 @@ onMounted(async () => {
   font-weight: 700;
 }
 
-.limit-grid,
-.rule-grid,
-.derived-grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
-}
-
 .limit-grid {
+  display: grid;
+  gap: 16px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
-.limit-panel,
-.rule-card,
-.derived-card {
+.limit-panel {
   border: 1px solid #e2e8f0;
   border-radius: 16px;
   padding: 16px;
@@ -1406,8 +1379,7 @@ onMounted(async () => {
   background: linear-gradient(180deg, #f0fdf4 0%, #ffffff 100%);
 }
 
-.panel-title,
-.rule-head {
+.panel-title {
   display: flex;
   justify-content: space-between;
   gap: 12px;
@@ -1415,45 +1387,12 @@ onMounted(async () => {
   margin-bottom: 14px;
 }
 
-.rule-card-level1 {
-  background: linear-gradient(180deg, #eff6ff 0%, #ffffff 100%);
-  border-color: #bfdbfe;
-}
-
-.rule-card-level2 {
-  background: linear-gradient(180deg, #fffbeb 0%, #ffffff 100%);
-  border-color: #fde68a;
-}
-
-.rule-card-level3 {
-  background: linear-gradient(180deg, #fef2f2 0%, #ffffff 100%);
-  border-color: #fecaca;
-}
-
-.derived-level-label {
-  font-weight: 700;
-}
-
-.derived-level1 {
-  color: #2563eb;
-}
-
-.derived-level2 {
-  color: #d97706;
-}
-
-.derived-level3 {
-  color: #dc2626;
-}
-
-.panel-title h4,
-.rule-head strong {
+.panel-title h4 {
   margin: 0;
   color: #0f172a;
 }
 
-.panel-title span,
-.rule-head span {
+.panel-title span {
   color: #475569;
   font-size: 12px;
   font-weight: 700;
@@ -1499,9 +1438,7 @@ onMounted(async () => {
   .weather-summary-grid,
   .wind-visual-grid,
   .weather-action-layout,
-  .limit-grid,
-  .rule-grid,
-  .derived-grid {
+  .limit-grid {
     grid-template-columns: 1fr;
   }
 
@@ -1646,21 +1583,23 @@ onMounted(async () => {
   text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
 }
 
-/* Fixed proportions: out of 2.6 total units */
-.tz-over { flex: 0.3; }
-.tz-lv2  { flex: 0.25; }
-.tz-lv1  { flex: 0.25; }
-.tz-safe { flex: 1.0; }
+.tz-over { flex: 0.35; }
+.tz-safe { flex: 1.3; }
 
-/* Left-side segments */
-.tz-seg:nth-child(1) { background: linear-gradient(90deg, #2563eb, #60a5fa); }
-.tz-seg:nth-child(2) { background: linear-gradient(90deg, #ea580c, #f97316); }
-.tz-seg:nth-child(3) { background: linear-gradient(90deg, #dc2626, #ef4444); }
-.tz-seg:nth-child(4) { background: linear-gradient(90deg, #16a34a, #22c55e, #16a34a); }
-/* Right-side segments (mirror) */
-.tz-seg:nth-child(5) { background: linear-gradient(90deg, #ef4444, #dc2626); }
-.tz-seg:nth-child(6) { background: linear-gradient(90deg, #f97316, #ea580c); }
-.tz-seg:nth-child(7) { background: linear-gradient(90deg, #60a5fa, #2563eb); }
+.tz-over {
+  background: linear-gradient(90deg, #ef4444, #dc2626);
+}
+
+.tz-safe {
+  background: linear-gradient(90deg, #16a34a, #22c55e, #16a34a);
+}
+
+.tz-safe-range span {
+  padding: 0 10px;
+  font-size: 9px;
+  letter-spacing: 0.01em;
+  font-variant-numeric: tabular-nums;
+}
 
 .tz-markers {
   position: relative;
