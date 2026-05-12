@@ -370,7 +370,7 @@ const getUserAuth = async () => {
       removeLinkById("glassToughnessJudge");
     }
     if (!userAuth.value.access_system_z) {
-      removeLinkById("corrosiondetection");
+      removeLinkById("corrosion");
     }
     if (!userAuth.value.is_superuser) {
       removeLinkById("userManage");

@@ -551,6 +551,11 @@ const useFallbackData = (jobId: string) => {
 
 const getAuthHeaders = (): Record<string, string> => {
   if (process.client) {
+    const storedToken = localStorage.getItem('authToken')
+    if (storedToken) {
+      return { Authorization: `Bearer ${storedToken}` }
+    }
+
     const cookies = document.cookie.split(';').reduce((acc, cookie) => {
       const [key, value] = cookie.trim().split('=')
       acc[key] = value

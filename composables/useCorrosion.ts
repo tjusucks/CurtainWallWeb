@@ -7,6 +7,12 @@ import { ref } from 'vue'
 // 获取认证 token 的辅助函数
 const getAuthHeaders = (): Record<string, string> => {
   if (process.client) {
+    const storedToken = localStorage.getItem('authToken')
+    if (storedToken) {
+      console.log('[useCorrosion] Token found in localStorage, length:', storedToken.length)
+      return { Authorization: `Bearer ${storedToken}` }
+    }
+
     // 在客户端，从 document.cookie 读取
     const cookies = document.cookie.split(';').reduce((acc, cookie) => {
       const [key, value] = cookie.trim().split('=')
@@ -19,7 +25,7 @@ const getAuthHeaders = (): Record<string, string> => {
       console.log('[useCorrosion] ✅ Token found, length:', token.length)
       return { Authorization: `Bearer ${token}` }
     }
-    console.warn('[useCorrosion] ⚠️ No auth_token in cookies')
+    console.warn('[useCorrosion] No auth token found in localStorage or cookies')
     return {}
   }
   
