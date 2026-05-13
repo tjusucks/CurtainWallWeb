@@ -24,7 +24,7 @@
         />
       </el-select>
 
-      <el-select v-model="selectedDataSource" placeholder="选择数据级别" class="ml-4 min-w-[180px]" @change="fetchDataBySelection">
+      <el-select v-model="selectedDataSource" placeholder="选择数据级别" class="ml-4 min-w-[180px]">
         <el-option label="秒级数据" value="second"></el-option>
         <el-option label="分钟级数据" value="minute"></el-option>
         <el-option label="小时级数据" value="hourly"></el-option>
@@ -93,12 +93,61 @@ import {onMounted, ref, watch, computed, onBeforeUnmount, nextTick} from 'vue';
 import * as echarts from 'echarts';
 import {useRouter} from "vue-router";
 import axios from 'axios';
-import type { CascaderValue } from 'element-plus';
 import { ElMessage } from 'element-plus';
 
 const API_BASE_URL = 'http://8.153.161.229:8009';
-const dataSource = ref<'api_second' | 'api_minute' | 'api_hour' | 'api_day'| 'api_week' | 'api_month' | 'api_year'>('api_minute');
-const selectedDataSource = ref('minute');
+type DataSourceValue = 'second' | 'minute' | 'hourly' | 'daily' | 'weekly' | 'monthly';
+
+interface AxisSeries {
+  times: string[];
+  values: number[];
+}
+
+interface ChartData {
+  x: AxisSeries;
+  y: AxisSeries;
+  z: AxisSeries;
+  ch1: AxisSeries;
+  ch2: AxisSeries;
+}
+
+const createEmptyChartData = (): ChartData => ({
+  x: { times: [], values: [] },
+  y: { times: [], values: [] },
+  z: { times: [], values: [] },
+  ch1: { times: [], values: [] },
+  ch2: { times: [], values: [] }
+});
+
+const DATA_SOURCE_ENDPOINTS: Record<DataSourceValue, string> = {
+  second: 'get_second_data',
+  minute: 'get_minute_data',
+  hourly: 'get_hourly_data',
+  daily: 'get_daily_data',
+  weekly: 'get_weekly_data',
+  monthly: 'get_monthly_data'
+};
+
+const DATA_SOURCE_REQUEST_POINTS: Record<DataSourceValue, number> = {
+  second: 20000,
+  minute: 10000,
+  hourly: 24 * 90,
+  daily: 730,
+  weekly: 156,
+  monthly: 60
+};
+
+const DATA_SOURCE_VISIBLE_POINTS: Record<DataSourceValue, number> = {
+  second: 600,
+  minute: 360,
+  hourly: 168,
+  daily: 120,
+  weekly: 52,
+  monthly: 24
+};
+
+const dataSource = ref<DataSourceValue>('minute');
+const selectedDataSource = ref<DataSourceValue>('minute');
 
 // 标签页相关
 const activeTab = ref('all');
@@ -134,13 +183,42 @@ let fetchInterval: NodeJS.Timeout | null = null;
 let thresholdCheckInterval: NodeJS.Timeout | null = null;
 const maxDataLength = 100;
 
-const accumulatedData = ref({
-  x: { times: [] as string[], values: [] as number[] },
-  y: { times: [] as string[], values: [] as number[] },
-  z: { times: [] as string[], values: [] as number[] },
-  ch1: { times: [] as string[], values: [] as number[] },
-  ch2: { times: [] as string[], values: [] as number[] }
-});
+const accumulatedData = ref<ChartData>(createEmptyChartData());
+
+const getRequestPointCount = (sourceType: DataSourceValue = selectedDataSource.value) =>
+  DATA_SOURCE_REQUEST_POINTS[sourceType];
+
+const getVisiblePointCount = (sourceType: DataSourceValue = selectedDataSource.value) =>
+  DATA_SOURCE_VISIBLE_POINTS[sourceType];
+
+const getXAxisDataZoom = (xAxisData: string[]) => {
+  const total = xAxisData.length;
+  if (total === 0) return [];
+
+  const visibleCount = Math.min(total, getVisiblePointCount());
+  const startValue = Math.max(0, total - visibleCount);
+  const endValue = total - 1;
+
+  return [
+    {
+      type: 'inside',
+      xAxisIndex: 0,
+      startValue,
+      endValue,
+      filterMode: 'filter'
+    },
+    {
+      type: 'slider',
+      xAxisIndex: 0,
+      startValue,
+      endValue,
+      height: 26,
+      bottom: 8,
+      brushSelect: true,
+      filterMode: 'filter'
+    }
+  ];
+};
 
 // 初始化图表函数
 const initializeCharts = () => {
@@ -454,7 +532,7 @@ const generateAccelerometerOption = (data: any, chartType: string, xAxisData: st
     grid: {
       left: '3%',
       right: '4%',
-      bottom: '15%',
+      bottom: '20%',
       top: '15%',
       containLabel: true
     },
@@ -475,7 +553,8 @@ const generateAccelerometerOption = (data: any, chartType: string, xAxisData: st
       boundaryGap: false,
       data: xAxisData,
       axisLabel: {
-        rotate: 45
+        rotate: 45,
+        hideOverlap: true
       }
     },
     yAxis: {
@@ -487,24 +566,7 @@ const generateAccelerometerOption = (data: any, chartType: string, xAxisData: st
         }
       }
     },
-    dataZoom: [
-      {
-        type: 'inside',
-        xAxisIndex: 0
-      },
-      {
-        type: 'slider',
-        xAxisIndex: 0
-      },
-      {
-        type: 'inside',
-        yAxisIndex: 0
-      },
-      {
-        type: 'slider',
-        yAxisIndex: 0
-      }
-    ],
+    dataZoom: getXAxisDataZoom(xAxisData),
     series
   };
 };
@@ -624,7 +686,7 @@ const generateStrainGaugeOption = (data: any, chartType: string, xAxisData: stri
     grid: {
       left: '3%',
       right: '4%',
-      bottom: '15%',
+      bottom: '20%',
       top: '15%',
       containLabel: true
     },
@@ -645,7 +707,8 @@ const generateStrainGaugeOption = (data: any, chartType: string, xAxisData: stri
       boundaryGap: false,
       data: xAxisData,
       axisLabel: {
-        rotate: 45
+        rotate: 45,
+        hideOverlap: true
       }
     },
     yAxis: {
@@ -657,24 +720,7 @@ const generateStrainGaugeOption = (data: any, chartType: string, xAxisData: stri
         }
       }
     },
-    dataZoom: [
-      {
-        type: 'inside',
-        xAxisIndex: 0
-      },
-      {
-        type: 'slider',
-        xAxisIndex: 0
-      },
-      {
-        type: 'inside',
-        yAxisIndex: 0
-      },
-      {
-        type: 'slider',
-        yAxisIndex: 0
-      }
-    ],
+    dataZoom: getXAxisDataZoom(xAxisData),
     series
   };
 };
@@ -801,9 +847,8 @@ const fetchSecondData = async () => {
   try {
     const response = await axios.get(`${API_BASE_URL}/data/get_second_data`, {
       params: {
-        device: selectedDevice.value,
-        channel: '0',
-        num: 60 * 60 * 24*24
+        device_name: selectedDevice.value,
+        num: getRequestPointCount('second')
       }
     });
 
@@ -851,34 +896,13 @@ const stopAllPolling = () => {
   }
 };
 
-const loadData = async (type: 'second' | 'minute' | 'hourly' | 'daily' | 'monthly' | 'yearly', numPoints: number) => {
+const loadData = async (type: DataSourceValue, numPoints = getRequestPointCount(type)) => {
   try {
-    let endpoint;
-    switch (type) {
-      case 'second':
-        endpoint = 'get_second_data';
-        break;
-      case 'minute':
-        endpoint = 'get_minute_data';
-        break;
-      case 'hourly':
-        endpoint = 'get_hourly_data';
-        break;
-      case 'daily':
-        endpoint = 'get_daily_data';
-        break;
-      case 'monthly':
-        endpoint = 'get_monthly_data';
-        break;
-      case 'yearly':
-        endpoint = 'get_yearly_data';
-        break;
-    }
+    const endpoint = DATA_SOURCE_ENDPOINTS[type];
 
     const response = await axios.get(`${API_BASE_URL}/data/${endpoint}`, {
       params: {
-        device: selectedDevice.value,
-        channel: '0',
+        device_name: selectedDevice.value,
         num: numPoints
       }
     });
@@ -907,33 +931,39 @@ const loadData = async (type: 'second' | 'minute' | 'hourly' | 'daily' | 'monthl
   }
 };
 
-const switchDataSourceMode = async (sourceType: 'api_minute' | 'api_hour' | 'api_day' | 'api_month' | 'api_year', showMessage = true) => {
+const switchDataSourceMode = async (sourceType: DataSourceValue, showMessage = true) => {
   stopAllPolling();
+  dataSource.value = sourceType;
+  selectedDataSource.value = sourceType;
   
   secondDataInterval = null;
   fetchInterval = null;
   
   switch (sourceType) {
-    case 'api_minute':
+    case 'second':
+      console.log("切换到秒级数据");
+      await loadData('second');
+      break;
+    case 'minute':
       console.log("切换到分钟级数据");
-      await loadData('minute', 6000);
+      await loadData('minute');
       startFetchingLatestData();
       break;
-    case 'api_hour':
+    case 'hourly':
       console.log("切换到小时级数据");
-      await loadData('hourly', 1000);
+      await loadData('hourly');
       break;
-    case 'api_day':
+    case 'daily':
       console.log("切换到天级数据");
-      await loadData('daily', 78);
+      await loadData('daily');
       break;
-    case 'api_month':
+    case 'weekly':
+      console.log("切换到周级数据");
+      await loadData('weekly');
+      break;
+    case 'monthly':
       console.log("切换到月级数据");
-      await loadData('monthly', 12);
-      break;
-    case 'api_year':
-      console.log("切换到年级数据");
-      await loadData('yearly', 5);
+      await loadData('monthly');
       break;
   }
   
@@ -948,7 +978,7 @@ const switchDataSourceMode = async (sourceType: 'api_minute' | 'api_hour' | 'api
 
 const startFetchingLatestData = () => {
   fetchInterval = setInterval(() => {
-    loadData('minute', 6000);
+    loadData('minute');
   }, 60000);
 };
 
@@ -989,35 +1019,9 @@ const fetchDataBySelection = async () => {
   }
 
   const deviceName = selectedDevice.value;
-  let endpoint = '';
-  let numPoints = 1000;
-
-  switch (selectedDataSource.value) {
-    case 'second':
-      endpoint = 'get_second_data';
-      numPoints = 20000;
-      break;
-    case 'minute':
-      endpoint = 'get_minute_data';
-      numPoints = 10000;
-      break;
-    case 'hourly':
-      endpoint = 'get_hourly_data';
-      numPoints = 1000;
-      break;
-    case 'daily':
-      endpoint = 'get_daily_data';
-      numPoints = 100;
-      break;
-    case 'weekly':
-      endpoint = 'get_weekly_data';
-      numPoints = 60;
-      break;
-    case 'monthly':
-      endpoint = 'get_monthly_data';
-      numPoints = 30;
-      break;
-  }
+  const endpoint = DATA_SOURCE_ENDPOINTS[selectedDataSource.value];
+  const numPoints = getRequestPointCount();
+  dataSource.value = selectedDataSource.value;
 
   try {
     const response = await axios.get(`${API_BASE_URL}/data/${endpoint}`, {
@@ -1030,13 +1034,7 @@ const fetchDataBySelection = async () => {
     if (response.data.status === 'success') {
       const data = response.data.data;
   
-      let chartData = {
-          x: { times: [], values: [] },
-          y: { times: [], values: [] },
-          z: { times: [], values: [] },
-          ch1: { times: [], values: [] },
-          ch2: { times: [], values: [] }
-      };
+      const chartData = createEmptyChartData();
 
       if (selectedDeviceType.value === 'accelerometer') {
         if (data.x) {
@@ -1082,13 +1080,12 @@ const fetchDataBySelection = async () => {
 
 const dataSourceName = (): string => {
   switch(dataSource.value) {
-    case 'api_minute': return '分钟级';
-    case 'api_hour': return '小时级';
-    case 'api_day': return '天级';
-    case 'api_month': return '月级';
-    case 'api_year': return '年级';
-    case 'api_second': return '秒级';
-    case 'api_week': return '周级';
+    case 'minute': return '分钟级';
+    case 'hourly': return '小时级';
+    case 'daily': return '天级';
+    case 'monthly': return '月级';
+    case 'second': return '秒级';
+    case 'weekly': return '周级';
     default: return '';
   }
 };
@@ -1139,7 +1136,7 @@ watch(selectedDeviceType, (newType) => {
 
 onMounted(() => {
   initializeCharts();
-  dataSource.value = selectedDataSource.value as 'api_second' | 'api_minute' | 'api_hour' | 'api_day' | 'api_week' | 'api_month' | 'api_year';
+  dataSource.value = selectedDataSource.value;
   window.addEventListener('resize', handleResize);
   fetchDevices();
 });
@@ -1155,27 +1152,26 @@ onBeforeUnmount(() => {
   });
 });
 
-watch([selectedDevice, dataSource], async ([newDevice, newDataSource], [oldDevice, oldDataSource]) => {
+const syncDeviceTypeFromDeviceName = (deviceName: string) => {
+  selectedDeviceType.value = deviceName.includes('Y') ? 'strainGauge' : 'accelerometer';
+};
+
+watch([selectedDevice, selectedDataSource], async ([newDevice, newDataSource], [oldDevice, oldDataSource]) => {
   console.log(`watch检测到变化: 
     数据源: ${oldDataSource} -> ${newDataSource}
     设备: ${oldDevice} -> ${newDevice}`
   );
 
-  if (newDevice) {
-    chartOptions.value = {}; // 清空预处理配置
-    // 确保激活all标签页
-    activeTab.value = 'all';
-  }
-  
-  await switchDataSourceMode(newDataSource as 'api_minute' | 'api_hour' | 'api_day' | 'api_month' | 'api_year', false);
-});
+  if (!newDevice) return;
 
-watch(selectedDevice, (newDevice) => {
-  if (newDevice) {
-    selectedDeviceType.value = newDevice.includes('Y') ? 'strainGauge' : 'accelerometer';
-    // 设备变化时确保显示all标签页
-    activeTab.value = 'all';
-  }
+  syncDeviceTypeFromDeviceName(newDevice);
+  dataSource.value = newDataSource;
+  accumulatedData.value = createEmptyChartData();
+  chartOptions.value = {};
+  activeTab.value = 'all';
+
+  await nextTick();
+  await fetchDataBySelection();
 });
 </script>
 
