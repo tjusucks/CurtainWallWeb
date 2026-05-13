@@ -154,13 +154,17 @@
       <section class="panel">
         <div class="panel-heading">
           <div>
-            <p class="eyebrow">设备选择</p>
-            <h1>人工上下限设置</h1>
+            <p class="eyebrow">设备工作区</p>
+            <h1>选择设备进入二级设置界面</h1>
           </div>
-          <div class="status-chip">
-            当前生效来源
-            <strong>人工配置</strong>
+          <div class="status-chip workspace-status-chip">
+            
+            <strong>人工进行逐设备设置</strong>
           </div>
+        </div>
+
+        <div class="note-card workspace-note-card">
+          从这里选择要设定阈值的设备进入独立的阈值工作区。
         </div>
 
         <div class="building-grid">
@@ -172,161 +176,18 @@
                 :key="device.value"
                 type="button"
                 class="device-button"
-                :class="{
-                  active: selectedDevice.value === device.value,
-                  strain: device.type === 'strainGauge',
-                }"
-                @click="selectDevice(device)"
+                :class="{ strain: device.type === 'strainGauge' }"
+                @click="openDeviceDetail(device)"
               >
                 <span>{{ device.label }}</span>
                 <small>{{ device.type === 'accelerometer' ? '加速度计' : '应变计' }}</small>
+                <em class="device-action">打开设备阈值工作区</em>
               </button>
             </div>
           </article>
         </div>
 
-        <div class="summary-card">
-          <div>
-            <p class="summary-label">当前设备</p>
-            <h2>{{ selectedDevice.label }}</h2>
-            <p class="summary-text">{{ currentStatusText }}</p>
-          </div>
-          <div class="summary-meta">
-            <div>
-              <span>设备类型</span>
-              <strong>{{ selectedDevice.type === "accelerometer" ? "加速度计" : "应变计" }}</strong>
-            </div>
-            <div>
-              <span>数据来源</span>
-              <strong>{{ currentDataSource }}</strong>
-            </div>
-            <div>
-              <span>最后同步</span>
-              <strong>{{ lastSyncedAt }}</strong>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      <section class="panel">
-        <div class="panel-heading">
-          <div>
-            <p class="eyebrow">人工设定阈值</p>
-            <h2>查询与保存人工上下限</h2>
-          </div>
-        </div>
-
-        <div class="note-card">
-          本页仅维护业务侧展示的上限与下限。保存时自动换算为后端字段：
-          <strong>offset = (上限 + 下限) / 2</strong>，<strong>limit = (上限 - 下限) / 2</strong>。
-        </div>
-
-        <div v-for="channel in visibleChannels" :key="channel.key" class="channel-card">
-          <div class="channel-header">
-            <div>
-              <h3>{{ channel.label }}</h3>
-              <p>{{ channel.description }}</p>
-            </div>
-              <span class="channel-tag">上下限展示</span>
-          </div>
-
-          <div class="limit-grid">
-            <article class="limit-panel current-panel">
-              <div class="panel-title">
-                <h4>当前值</h4>
-                <span>接口返回结果</span>
-              </div>
-              <div class="metric-row">
-                <span>上限</span>
-                <strong>{{ formatValue(currentLimits[channel.key].upper) }}</strong>
-              </div>
-              <div class="metric-row">
-                <span>下限</span>
-                <strong>{{ formatValue(currentLimits[channel.key].lower) }}</strong>
-              </div>
-              <div class="metric-row sub-row">
-                <span>offset</span>
-                <span>{{ formatValue(currentLimits[channel.key].offset) }}</span>
-              </div>
-              <div class="metric-row sub-row">
-                <span>limit</span>
-                <span>{{ formatValue(currentLimits[channel.key].threshold) }}</span>
-              </div>
-            </article>
-
-            <article class="limit-panel edit-panel">
-              <div class="panel-title">
-                <h4>人工设置</h4>
-                <span>提交至后端</span>
-              </div>
-
-              <label class="field-row">
-                <span>上限</span>
-                <UInput v-model="manualLimits[channel.key].upper" type="number" />
-              </label>
-              <label class="field-row">
-                <span>下限</span>
-                <UInput v-model="manualLimits[channel.key].lower" type="number" />
-              </label>
-
-              <div class="metric-row sub-row">
-                <span>换算 offset</span>
-                <span>{{ formatValue(getManualCalibrationPreview(channel.key)?.offset) }}</span>
-              </div>
-              <div class="metric-row sub-row">
-                <span>换算 limit</span>
-                <span>{{ formatValue(getManualCalibrationPreview(channel.key)?.threshold) }}</span>
-              </div>
-            </article>
-
-          </div>
-
-          <!-- Threshold zone visualization -->
-          <div v-if="currentLimits[channel.key].threshold > 0" class="threshold-zone-section">
-            <div class="tz-header">
-              <span class="tz-title">阈值区间可视化</span>
-              <span class="tz-note">直接展示当前原始阈值范围，绿色为阈值内，红色为超限区</span>
-            </div>
-            <div class="tz-bar-outer">
-              <div class="tz-bar">
-                <div class="tz-seg tz-over" title="低于下限，属于超限区"><span>超限</span></div>
-                <div
-                  class="tz-seg tz-safe tz-safe-range"
-                  :title="`原始阈值范围：${formatThresholdRange(currentLimits[channel.key].lower, currentLimits[channel.key].upper)}`"
-                >
-                  <span>{{ formatThresholdRange(currentLimits[channel.key].lower, currentLimits[channel.key].upper) }}</span>
-                </div>
-                <div class="tz-seg tz-over" title="高于上限，属于超限区"><span>超限</span></div>
-              </div>
-              <div class="tz-markers">
-                <div class="tz-mark" style="left: 11.54%">
-                  <div class="tz-mark-line"></div>
-                  <div class="tz-mark-val">{{ formatValue(currentLimits[channel.key].lower) }}</div>
-                  <div class="tz-mark-sub">下限</div>
-                </div>
-                <div class="tz-mark tz-mark-mid" style="left: 50%">
-                  <div class="tz-mark-line"></div>
-                  <div class="tz-mark-val">{{ formatValue(currentLimits[channel.key].offset) }}</div>
-                  <div class="tz-mark-sub">中心</div>
-                </div>
-                <div class="tz-mark" style="left: 88.46%">
-                  <div class="tz-mark-line"></div>
-                  <div class="tz-mark-val">{{ formatValue(currentLimits[channel.key].upper) }}</div>
-                  <div class="tz-mark-sub">上限</div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-
-        <div class="action-bar">
-          <UButton color="gray" variant="soft" :loading="loadingFetch" @click="fetchThresholds">
-            重新查询当前上下限
-          </UButton>
-          <UButton color="primary" :loading="loadingCalibration" @click="applyManualLimits">
-            保存人工上下限
-          </UButton>
-        </div>
+       
       </section>
 
       
@@ -618,14 +479,11 @@ const applyManualLimits = async () => {
   }
 };
 
-const selectDevice = async (device: DeviceOption) => {
-  selectedDevice.value = device;
-  resetAllChannels();
-  currentDataSource.value = "/data/get_threshold_or_offset";
-  lastSyncedAt.value = "查询中";
-  currentStatusText.value = `已切换到 ${device.label}，正在查询当前上下限。`;
-  ElMessage.info(`已选择 ${device.label}`);
-  await fetchThresholds();
+const openDeviceDetail = (device: DeviceOption) => {
+  router.push({
+    path: "/vibration/parameter-detail",
+    query: { device: device.value },
+  });
 };
 
 const weatherData = reactive<{
@@ -1036,7 +894,6 @@ onMounted(async () => {
   await fetchWeatherData();
   initWindGauge();
   await fetchScheduleConfig();
-  await fetchThresholds();
 });
 </script>
 
@@ -1130,6 +987,16 @@ onMounted(async () => {
   background: #dbeafe;
   border-color: #bfdbfe;
   color: #1e40af;
+}
+
+.workspace-status-chip {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+}
+
+.workspace-note-card {
+  border-left: 4px solid #60a5fa;
 }
 
 .weather-summary-grid {
@@ -1256,6 +1123,13 @@ onMounted(async () => {
   color: #64748b;
 }
 
+.device-action {
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 700;
+  color: #2563eb;
+}
+
 .device-button.active {
   border-color: #16a34a;
   box-shadow: 0 10px 20px rgba(22, 163, 74, 0.14);
@@ -1292,6 +1166,21 @@ onMounted(async () => {
   margin: 0;
   color: #cbd5e1;
   line-height: 1.6;
+}
+
+.workspace-launch-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.workspace-launch-card::after {
+  content: "";
+  position: absolute;
+  inset: auto -40px -40px auto;
+  width: 180px;
+  height: 180px;
+  background: radial-gradient(circle, rgba(96, 165, 250, 0.22), transparent 70%);
+  pointer-events: none;
 }
 
 .summary-meta {
