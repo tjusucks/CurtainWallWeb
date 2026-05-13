@@ -38,7 +38,7 @@
   </UDashboardToolbar>
 
   <!-- 多图表卡片容器 -->
-  <UDashboardCard class="overflow-y-auto">
+  <UDashboardCard class="overflow-y-auto" v-loading="chartLoading">
     <div class="chart-tabs">
       <!-- 标签页导航 -->
       <div class="tab-nav">
@@ -138,12 +138,12 @@ const DATA_SOURCE_REQUEST_POINTS: Record<DataSourceValue, number> = {
 };
 
 const DATA_SOURCE_VISIBLE_POINTS: Record<DataSourceValue, number> = {
-  second: 600,
+  second: 500,
   minute: 360,
   hourly: 168,
-  daily: 120,
-  weekly: 52,
-  monthly: 24
+  daily: 365,
+  weekly: 156,
+  monthly: 60
 };
 
 const dataSource = ref<DataSourceValue>('minute');
@@ -171,6 +171,7 @@ const charts = ref<{ [key: string]: echarts.ECharts | null }>({});
 
 // 存储预处理的图表配置
 const chartOptions = ref<{ [key: string]: any }>({});
+const chartLoading = ref(false);
 
 const devices = ref<{ device_name: string; category: string }[]>([]);
 const selectedCategory = ref('');
@@ -218,6 +219,24 @@ const getXAxisDataZoom = (xAxisData: string[]) => {
       filterMode: 'filter'
     }
   ];
+};
+
+const hasRenderableData = (chartData: ChartData) => {
+  if (selectedDeviceType.value === 'strainGauge') {
+    return chartData.ch1.values.length > 0 || chartData.ch2.values.length > 0;
+  }
+
+  return (
+    chartData.x.values.length > 0 ||
+    chartData.y.values.length > 0 ||
+    chartData.z.values.length > 0
+  );
+};
+
+const clearAllCharts = () => {
+  chartOptions.value = {};
+  accumulatedData.value = createEmptyChartData();
+  Object.values(charts.value).forEach(chart => chart?.clear());
 };
 
 // 初始化图表函数
@@ -1022,13 +1041,15 @@ const fetchDataBySelection = async () => {
   const endpoint = DATA_SOURCE_ENDPOINTS[selectedDataSource.value];
   const numPoints = getRequestPointCount();
   dataSource.value = selectedDataSource.value;
+  chartLoading.value = true;
 
   try {
     const response = await axios.get(`${API_BASE_URL}/data/${endpoint}`, {
       params: {
         device_name: deviceName,
         num: numPoints
-      }
+      },
+      timeout: selectedDataSource.value === 'second' ? 60000 : 30000
     });
 
     if (response.data.status === 'success') {
@@ -1060,6 +1081,12 @@ const fetchDataBySelection = async () => {
             chartData.ch2.values = data.ch2.map((item: [string, number]) => item[1]);
         }
       }
+
+      if (!hasRenderableData(chartData)) {
+        clearAllCharts();
+        ElMessage.warning(`${dataSourceName()}接口返回为空，当前设备没有可展示的${dataSourceName()}数据`);
+        return;
+      }
       
       console.log("合并后的图表数据:", chartData);
       
@@ -1075,6 +1102,9 @@ const fetchDataBySelection = async () => {
     }
   } catch (error) {
     console.error("获取数据失败:", error);
+    ElMessage.error(`${dataSourceName()}数据请求失败或超时`);
+  } finally {
+    chartLoading.value = false;
   }
 };
 
