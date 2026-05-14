@@ -93,7 +93,6 @@ import InstructionChecklist from '~/components/glass-inspection/InstructionCheck
 import DetectionResultCard from '~/components/glass-inspection/DetectionResultCard.vue'
 import type { DetectionResultData } from '~/types/glassInspection'
 
-const { user, restoreSession } = useAuth()
 const maxCount = 1
 const instructions = [
   '支持常见图片格式（JPG、PNG、WEBP）。',
@@ -135,21 +134,15 @@ const handleDetect = async () => {
   isSubmitting.value = true
 
   try {
-    await restoreSession()
-    const userId = user.value?.id
+    let email = localStorage.getItem('email')
 
-    if (!userId) {
-      result.value = {
-        status: 'error',
-        title: '用户未登录',
-        description: '请先登录后再进行裂痕检测。'
-      }
+    if (!email) {
       ElMessage.warning('请先登录后再进行检测')
       return
     }
 
     const uploadFiles = files.value.filter(Boolean) as File[]
-    result.value = await detectGlassCrack(userId, uploadFiles)
+    result.value = await detectGlassCrack(email, uploadFiles)
   } catch (error: any) {
     result.value = {
       status: 'error',

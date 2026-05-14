@@ -92,7 +92,15 @@ const paginatedList = computed(() => {
 });
 
 const handleSwitchChange = async (item, key, updatemethod) => {
-  const currentUserEmail = localStorage.getItem("email");
+  let currentUserEmail = localStorage.getItem("email");
+  if (!currentUserEmail) {
+    try {
+      const storedUser = JSON.parse(localStorage.getItem('auth_user') || '{}');
+      currentUserEmail = storedUser?.email || storedUser?.username || '';
+    } catch {
+      currentUserEmail = '';
+    }
+  }
 
 
   // 管理员权限转让逻辑
