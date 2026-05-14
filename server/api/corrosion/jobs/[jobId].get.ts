@@ -26,7 +26,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const config = useRuntimeConfig()
-  const apiBase = config.public.apiBase || ''
+  const apiBase = config.public.corrosionApiBase || 'http://8.153.161.229:18000'
   console.log(`[jobs.get] Querying job: ${jobId}, apiBase: ${apiBase || 'NONE (Mock Mode)'}`)
   
   // 1. 如果配置了后端地址，直接转发请求，不在前端验证本地用户

@@ -1,15 +1,15 @@
 <template>
   <UDashboardPage class="min-h-0">
     <UDashboardPanel grow class="min-h-0">
-      <UDashboardNavbar title="玻璃裂痕检测" />
+      <UDashboardNavbar title="玻璃自爆检测" />
 
       <UDashboardPanelContent class="gi-panel-content">
       <div class="gi-page">
         <div class="gi-shell">
           <FeaturePageHero
-            icon="i-heroicons-magnifying-glass"
-            title="玻璃裂痕检测"
-            description="上传玻璃图片后，系统将自动识别裂纹、崩边与明显破损，并返回可复核的检测结论。"
+            icon="i-material-symbols-sound-detection-glass-break-rounded"
+            title="玻璃自爆检测"
+            description="上传玻璃图片后，系统将自动识别疑似自爆特征、爆裂扩散形态与明显破损区域，并返回可复核的检测结论。"
             tone="cyan"
           />
 
@@ -36,7 +36,7 @@
               <div>
                 <div class="gi-panel-title">
                   <h3>检测作业面板</h3>
-                  <span>CRACK SCAN</span>
+                  <span>BURST SCAN</span>
                 </div>
 
                 <div class="gi-card-surface gi-action-panel">
@@ -58,7 +58,7 @@
                       :disabled="!isComplete || isSubmitting"
                       @click="handleDetect"
                     >
-                      <UIcon :name="isSubmitting ? 'i-heroicons-arrow-path' : 'i-heroicons-magnifying-glass'" :class="{ 'gi-spin': isSubmitting }" />
+                      <UIcon :name="isSubmitting ? 'i-heroicons-arrow-path' : 'i-material-symbols-sound-detection-glass-break-rounded'" :class="{ 'gi-spin': isSubmitting }" />
                       <span>{{ isSubmitting ? 'AI 检测中...' : '开始检测' }}</span>
                     </button>
                   </div>
@@ -93,6 +93,7 @@ import InstructionChecklist from '~/components/glass-inspection/InstructionCheck
 import DetectionResultCard from '~/components/glass-inspection/DetectionResultCard.vue'
 import type { DetectionResultData } from '~/types/glassInspection'
 
+const { user, restoreSession } = useAuth()
 const maxCount = 1
 const instructions = [
   '支持常见图片格式（JPG、PNG、WEBP）。',
@@ -134,15 +135,21 @@ const handleDetect = async () => {
   isSubmitting.value = true
 
   try {
-    let email = localStorage.getItem('email')
+    await restoreSession()
+    const userId = user.value?.id
 
-    if (!email) {
+    if (!userId) {
+      result.value = {
+        status: 'error',
+        title: '用户未登录',
+        description: '请先登录后再进行自爆检测。'
+      }
       ElMessage.warning('请先登录后再进行检测')
       return
     }
 
     const uploadFiles = files.value.filter(Boolean) as File[]
-    result.value = await detectGlassCrack(email, uploadFiles)
+    result.value = await detectGlassCrack(userId, uploadFiles)
   } catch (error: any) {
     result.value = {
       status: 'error',

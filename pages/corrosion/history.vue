@@ -318,6 +318,11 @@ const showSingleDetails = ref(false)
 const singleDetails = ref<any>(null)
 const singleDetailsLoading = ref(false)
 
+const getCorrosionApiBase = () => {
+  const config = useRuntimeConfig()
+  return (config.public.corrosionApiBase as string) || 'http://8.153.161.229:18000'
+}
+
 onMounted(() => {
   currentType.value = historyType.value
   handleRefresh()
@@ -378,7 +383,7 @@ const fetchSingleDetails = async (jobId: string) => {
   showSingleDetails.value = true
   try {
     console.log('[单次检测] 请求任务详情 API:', jobId)
-    const res = await $fetch<any>(`/api/corrosion/jobs/${jobId}`, {
+    const res = await $fetch<any>(`${getCorrosionApiBase()}/jobs/${jobId}`, {
       headers: getAuthHeaders(),
       credentials: 'include'
     })
@@ -546,6 +551,11 @@ const useFallbackData = (jobId: string) => {
 
 const getAuthHeaders = (): Record<string, string> => {
   if (process.client) {
+    const storedToken = localStorage.getItem('authToken')
+    if (storedToken) {
+      return { Authorization: `Bearer ${storedToken}` }
+    }
+
     const cookies = document.cookie.split(';').reduce((acc, cookie) => {
       const [key, value] = cookie.trim().split('=')
       acc[key] = value
@@ -638,9 +648,7 @@ const getImageUrl = (path: string) => {
   }
   
   // 否则拼接 API base URL
-  const config = useRuntimeConfig()
-  const apiBase = (config.public.apiBase as string) || 'http://127.0.0.1:8000'
-  const baseUrl = apiBase.replace(/\/$/, '')
+  const baseUrl = getCorrosionApiBase().replace(/\/$/, '')
   
   // 规范化路径
   let normalizedPath = path.replace(/\\/g, '/')

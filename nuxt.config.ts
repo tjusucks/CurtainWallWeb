@@ -7,16 +7,7 @@ export default defineNuxtConfig({
   //   '~/plugins/cleanup.js'
   // ],
   ui: {
-    global: true,
-    icons: {
-      dynamic: true,
-      families: {
-        heroicons: true,
-        'simple-icons': true,
-        'material-symbols': true
-      }
-    },
-    colors: ['primary', 'red', 'orange', 'green']
+    global: true
   },
 
   devtools: { enabled: true },
@@ -54,6 +45,10 @@ export default defineNuxtConfig({
       '/m-api': {
         target: process.env.NUXT_SERVER_MONITOR_UPSTREAM || 'http://8.159.143.133:8080/api/v1',
         changeOrigin: true,
+      },
+      '/detection-api': {
+        target: 'http://localhost:8081',
+        changeOrigin: true,
       }
     }
   },
@@ -70,9 +65,21 @@ export default defineNuxtConfig({
 
   // 确保环境变量在运行时可用
   runtimeConfig: {
-    // 服务端代理 `/m-api/*` 时使用的监控服务上游根地址。
-    monitorServiceOrigin:
-      process.env.NUXT_SERVER_MONITOR_UPSTREAM || 'http://8.159.143.133:8080',
+  // 服务端代理 `/m-api/*` 时使用的监控服务上游根地址。
+  monitorServiceOrigin:
+    process.env.NUXT_SERVER_MONITOR_UPSTREAM || 'http://8.159.143.133:8080',
+
+  apiBase: process.env.NUXT_API_BASE_URL || 'http://8.159.143.133:8000',
+
+  corrosionApiBase:
+    process.env.NUXT_CORROSION_API_BASE_URL || 'http://8.153.161.229:18000',
+
+  glassDetectionApiBase:
+    process.env.NUXT_GLASS_DETECTION_API_BASE || 'http://47.102.208.89:8007',
+
+  benchmarkPath: process.env.BENCHMARK_PATH || '/benchmarks',
+
+  public: {
     apiBase: process.env.NUXT_API_BASE_URL || 'http://8.159.143.133:8000',
     glassDetectionApiBase: process.env.NUXT_GLASS_DETECTION_API_BASE || 'http://8.153.161.229:8003',
     benchmarkPath: process.env.BENCHMARK_PATH || '/benchmarks',
@@ -84,6 +91,22 @@ export default defineNuxtConfig({
       serverMonitorBase: process.env.NUXT_PUBLIC_SERVER_MONITOR_BASE || ''
     }
   },
+
+    corrosionApiBase:
+      process.env.NUXT_CORROSION_API_BASE_URL || 'http://8.153.161.229:18000',
+
+    glassDetectionApiBase:
+      process.env.NUXT_GLASS_DETECTION_API_BASE || 'http://47.102.208.89:8007',
+
+    benchmarkPath: process.env.BENCHMARK_PATH || '/benchmarks',
+
+    serverMonitorApiPrefix:
+      process.env.NUXT_PUBLIC_SERVER_MONITOR_PREFIX || '/m-api',
+
+    serverMonitorBase:
+      process.env.NUXT_PUBLIC_SERVER_MONITOR_BASE || ''
+  }
+},
 
   image: {
     domains: ['8.159.143.133', '8.153.161.229', '110.42.214.164', '47.102.208.89']
