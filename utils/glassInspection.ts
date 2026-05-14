@@ -1,6 +1,6 @@
 import { useRuntimeConfig } from '#app'
 
-const DEFAULT_GLASS_DETECTION_BASE = 'http://47.102.208.89:8007'
+const DEFAULT_GLASS_DETECTION_BASE = 'http://8.153.161.229:8003'
 
 export function getGlassDetectionBaseURL() {
   try {
