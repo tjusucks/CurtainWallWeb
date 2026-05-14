@@ -1,3 +1,4 @@
+import type { DetectionResultData, FlatnessFieldName } from '~/types/glassInspection'
 import axios from 'axios'
 import { absolutizeDetectionResultMedia } from '~/utils/glassInspection'
 import { FLATNESS_FIELD_NAMES, type DetectionResultData, type FlatnessFieldName } from '~/types/glassInspection'
@@ -57,20 +58,26 @@ async function postGlassInspection(path: string, formData: FormData) {
   }
 }
 
-export async function detectGlassCrack(userId: string, files: File[]): Promise<DetectionResultData> {
+const API_BASE = import.meta.dev ? 'http://8.153.161.229:8003' : ''
+
+export async function detectGlassCrack(email: string, files: File[]): Promise<DetectionResultData> {
   const formData = new FormData()
-  formData.append('userId', userId)
+  formData.append('email', email)
   files.forEach((file) => formData.append('images', file))
 
+  return await $fetch(`${API_BASE}/api/detect/glass-crack`, {
+    method: 'POST',
+    body: formData,
+  }) as DetectionResultData
   return await postGlassInspection('/api/detect/glass-crack', formData)
 }
 
 export async function detectGlassFlatness(
-  userId: string,
+  email: string,
   filesByField: Partial<Record<FlatnessFieldName, File>>
 ): Promise<DetectionResultData> {
   const formData = new FormData()
-  formData.append('userId', userId)
+  formData.append('email', email)
 
   FLATNESS_FIELD_NAMES.forEach((field) => {
     const file = filesByField[field]
@@ -79,5 +86,9 @@ export async function detectGlassFlatness(
     }
   })
 
+  return await $fetch(`${API_BASE}/api/detect/glass-flatness`, {
+    method: 'POST',
+    body: formData,
+  }) as DetectionResultData
   return await postGlassInspection('/api/detect/glass-flatness', formData)
 }

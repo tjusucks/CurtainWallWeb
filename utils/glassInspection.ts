@@ -1,5 +1,6 @@
 import type { DetectionResultData } from '~/types/glassInspection'
 
+const DEFAULT_GLASS_DETECTION_BASE = 'http://8.153.161.229:8003'
 const LOCAL_GLASS_BACKEND_BASE = 'http://127.0.0.1:8080'
 const REMOTE_GLASS_DETECTION_BASE = 'http://47.102.208.89:8007'
 const RESULT_PATH_PATTERN = /(?:^|[\\/])data[\\/]result(?<suffix>[\\/].+)$/i
