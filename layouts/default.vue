@@ -117,7 +117,7 @@ const links = reactive<DashboardLink[]>([
   },
   {
     id: "glassInspection",
-    label: "幕墙智能检测",
+    label: "玻璃智能检测",
     icon: "i-heroicons-viewfinder-circle",
     to: "/glass-inspection",
     defaultOpen: false,
@@ -133,7 +133,7 @@ const links = reactive<DashboardLink[]>([
       },
       {
         id: "glassFlatness",
-        label: "幕墙平整度检测",
+        label: "玻璃平整度检测",
         to: "/glass-inspection/flatness",
       },
     ],

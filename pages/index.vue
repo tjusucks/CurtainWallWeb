@@ -53,12 +53,6 @@
               <span class="line-clamp-2">{{ module.description }}</span>
             </template>
           </UPageCard>
-          <UPageCard v-for="(module, index) in modulesLine5" :key="index" v-bind="module"
-                     @click="checkPermissionAndRedirect(module)" class="hover-effect bg-blue-100 dark:bg-blue-800" >
-            <template #description>
-              <span class="line-clamp-2">{{ module.description }}</span>
-            </template>
-          </UPageCard>
         </UPageGrid>
       </div>
     </UDashboardPanel>
@@ -123,7 +117,7 @@ const modulesLine3 = reactive([
     icon: "i-heroicons-magnifying-glass",
   },
   {
-    title: "幕墙平整度检测",
+    title: "玻璃平整度检测",
     description: "用于上传四组图像并生成平整度结果图与 3D 粒子点云复核视图。",
     target_address: "/glass-inspection/flatness",
     permissionKey: "access_system_g",
