@@ -7,7 +7,7 @@
       <div class="gi-page">
         <div class="gi-shell">
           <FeaturePageHero
-            icon="i-heroicons-cube-transparent"
+            icon="i-material-symbols-straighten-rounded"
             title="幕墙平整度检测"
             description="按左右环境图与投影图完成平整度分析，保留结果图与 3D 粒子点云效果用于复核。"
             tone="blue"
@@ -59,7 +59,7 @@
                       :disabled="!isComplete || isSubmitting"
                       @click="handleDetect"
                     >
-                      <UIcon :name="isSubmitting ? 'i-heroicons-arrow-path' : 'i-heroicons-cube-transparent'" :class="{ 'gi-spin': isSubmitting }" />
+                      <UIcon :name="isSubmitting ? 'i-heroicons-arrow-path' : 'i-material-symbols-straighten-rounded'" :class="{ 'gi-spin': isSubmitting }" />
                       <span>{{ isSubmitting ? 'AI 分析中...' : '开始检测' }}</span>
                     </button>
                   </div>

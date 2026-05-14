@@ -87,6 +87,7 @@ interface SceneData {
     maxY: number
     maxZ: number
   }
+  frameRadius: number
   bounds: {
     minX: number
     minY: number
@@ -106,6 +107,7 @@ interface SceneData {
   heightBandPlanes?: HeightBandPlaneDisplay[]
   fitPlaneZ?: number
   zExaggeration: number
+  viewTarget: [number, number, number]
 }
 
 type ViewName = 'reset' | 'front' | 'top' | 'side'
@@ -135,6 +137,7 @@ let resizeObserver: ResizeObserver | null = null
 let animationFrameId = 0
 let sceneGroup: THREE.Group | null = null
 let currentSceneData: SceneData | null = null
+let activeView: ViewName = 'reset'
 
 function resolvePointCloudData(data: PointCloudData): ResolvedPointCloud {
   if (Array.isArray(data.projected_points) && data.projected_points.length > 0) {
@@ -228,9 +231,9 @@ function buildSceneData(resolved: ResolvedPointCloud): SceneData | null {
   const dominantSpan = Math.max(xSpanMm, ySpanMm, zSpanMm, 1)
   const planePadding = Math.max(dominantSpan * 0.18, 18)
 
-  const shiftX = planePadding + Math.max(0, -minRawX)
-  const shiftY = planePadding + Math.max(0, -minRawY)
-  const shiftZ = planePadding + Math.max(0, -minRawZ)
+  const shiftX = planePadding - minRawX
+  const shiftY = planePadding - minRawY
+  const shiftZ = planePadding - minRawZ
 
   const displayPoints = resolved.points.map((point, index) => [
     point[0] * 1000 + shiftX,
@@ -255,6 +258,8 @@ function buildSceneData(resolved: ResolvedPointCloud): SceneData | null {
   const frameMaxX = maxX + planePadding
   const frameMaxY = maxY + planePadding
   const frameMaxZ = Math.max(maxZ + planePadding * 1.8, dominantSpan * 0.72 + planePadding)
+  const frameRadius = Math.hypot(frameMaxX, frameMaxY, frameMaxZ) / 2
+  const viewOffsetX = Math.min(Math.max(frameMaxX * 0.08, 28), frameMaxX * 0.18)
 
   let heightBandPlanes: HeightBandPlaneDisplay[] | undefined
   const fitHeightBand = resolved.fitHeightBand
@@ -289,6 +294,7 @@ function buildSceneData(resolved: ResolvedPointCloud): SceneData | null {
       maxY: frameMaxY,
       maxZ: frameMaxZ
     },
+    frameRadius,
     bounds: {
       minX,
       minY,
@@ -309,6 +315,9 @@ function buildSceneData(resolved: ResolvedPointCloud): SceneData | null {
     heightBandPlanes,
     fitPlaneZ: shiftZ,
     zExaggeration
+    cameraDistance: frameRadius,
+    target: [centerX, centerY, centerZ],
+    viewTarget: [centerX + viewOffsetX, centerY, centerZ]
   }
 }
 
@@ -550,6 +559,11 @@ function syncRendererSize() {
   renderer.setSize(width, height, false)
   camera.aspect = width / height
   camera.updateProjectionMatrix()
+
+  if (currentSceneData && controls) {
+    updateViewPresets(currentSceneData)
+    setView(activeView)
+  }
 }
 
 function ensureRenderer() {
@@ -587,6 +601,55 @@ function updateLegend(sceneData: SceneData, source: 'projected' | 'raw') {
     ? `（Z 轴已放大 ${sceneData.zExaggeration.toFixed(0)} 倍以便观测）`
     : ''
   legendText.value = `点数 ${sceneData.stats.count}，高度范围 ${sceneData.stats.minMm.toFixed(2)} mm 到 ${sceneData.stats.maxMm.toFixed(2)} mm，跨度 ${sceneData.stats.rangeMm.toFixed(2)} mm；平面尺寸约 ${sceneData.stats.xSpanMm.toFixed(1)} mm × ${sceneData.stats.ySpanMm.toFixed(1)} mm，Z 向范围约 ${sceneData.stats.zSpanMm.toFixed(2)} mm。${zNote}`
+}
+
+function getFitDistance(sceneData: SceneData) {
+  if (!camera) {
+    return sceneData.cameraDistance
+  }
+
+  const verticalFov = THREE.MathUtils.degToRad(camera.fov)
+  const horizontalFov = 2 * Math.atan(Math.tan(verticalFov / 2) * Math.max(camera.aspect, 0.1))
+  const limitingHalfFov = Math.max(Math.min(verticalFov, horizontalFov) / 2, THREE.MathUtils.degToRad(8))
+
+  return (sceneData.frameRadius / Math.sin(limitingHalfFov)) * 1.08
+}
+
+function updateViewPresets(sceneData: SceneData) {
+  if (!camera || !controls) {
+    return
+  }
+
+  const distance = getFitDistance(sceneData)
+  sceneData.cameraDistance = distance
+
+  camera.near = Math.max(sceneData.frameRadius / 100, 0.1)
+  camera.far = Math.max(distance * 8, sceneData.frameRadius * 12, 5000)
+  camera.updateProjectionMatrix()
+
+  controls.minDistance = Math.max(sceneData.frameRadius * 0.45, 40)
+  controls.maxDistance = Math.max(distance * 4, sceneData.frameRadius * 10)
+
+  viewPresets.reset = [
+    sceneData.viewTarget[0] + distance * 0.92,
+    sceneData.viewTarget[1] - distance * 0.9,
+    sceneData.viewTarget[2] + distance * 0.72
+  ]
+  viewPresets.front = [
+    sceneData.viewTarget[0],
+    sceneData.viewTarget[1] - distance * 1.16,
+    sceneData.viewTarget[2] + distance * 0.14
+  ]
+  viewPresets.top = [
+    sceneData.viewTarget[0],
+    sceneData.viewTarget[1],
+    sceneData.viewTarget[2] + distance * 1.3
+  ]
+  viewPresets.side = [
+    sceneData.viewTarget[0] + distance * 1.16,
+    sceneData.viewTarget[1],
+    sceneData.viewTarget[2] + distance * 0.14
+  ]
 }
 
 function rebuildScene() {
@@ -643,27 +706,7 @@ function rebuildScene() {
   scene.add(group)
   sceneGroup = group
 
-  viewPresets.reset = [
-    nextSceneData.frame.maxX + nextSceneData.cameraDistance * 0.42,
-    -nextSceneData.cameraDistance * 0.7,
-    nextSceneData.frame.maxZ + nextSceneData.cameraDistance * 0.55
-  ]
-  viewPresets.front = [
-    nextSceneData.target[0],
-    -nextSceneData.cameraDistance,
-    nextSceneData.target[2] + nextSceneData.cameraDistance * 0.18
-  ]
-  viewPresets.top = [
-    nextSceneData.target[0],
-    nextSceneData.target[1],
-    nextSceneData.frame.maxZ + nextSceneData.cameraDistance
-  ]
-  viewPresets.side = [
-    nextSceneData.frame.maxX + nextSceneData.cameraDistance,
-    nextSceneData.target[1],
-    nextSceneData.target[2] + nextSceneData.cameraDistance * 0.18
-  ]
-
+  updateViewPresets(nextSceneData)
   setView('reset')
   updateLegend(nextSceneData, resolved.source)
   sceneReady.value = true
@@ -674,9 +717,10 @@ function setView(view: ViewName) {
     return
   }
 
+  activeView = view
   const targetPosition = viewPresets[view]
   camera.position.set(...targetPosition)
-  controls.target.set(...currentSceneData.target)
+  controls.target.set(...currentSceneData.viewTarget)
   controls.update()
 }
 

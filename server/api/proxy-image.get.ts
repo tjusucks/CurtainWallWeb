@@ -16,7 +16,7 @@ export default defineEventHandler(async (event) => {
   }
 
   const config = useRuntimeConfig()
-  const apiBase = config.public.apiBase || 'http://127.0.0.1:8000'
+  const apiBase = config.public.corrosionApiBase || 'http://8.153.161.229:18000'
   
   // 确保路径以 / 开头
   const normalizedPath = imagePath.startsWith('/') ? imagePath : `/${imagePath}`

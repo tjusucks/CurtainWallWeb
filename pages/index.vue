@@ -110,18 +110,18 @@ const modulesLine2 = reactive([
 
 const modulesLine3 = reactive([
   {
-    title: "玻璃裂痕检测",
-    description: "用于上传玻璃现场图像并完成裂痕、崩边与破损缺陷识别。",
+    title: "玻璃自爆检测",
+    description: "用于上传玻璃现场图像并完成疑似自爆特征、爆裂形态与破损区域识别。",
     target_address: "/glass-inspection/crack",
     permissionKey: "access_system_c",
-    icon: "i-heroicons-magnifying-glass",
+    icon: "i-material-symbols-sound-detection-glass-break-rounded",
   },
   {
     title: "玻璃平整度检测",
     description: "用于上传四组图像并生成平整度结果图与 3D 粒子点云复核视图。",
     target_address: "/glass-inspection/flatness",
     permissionKey: "access_system_g",
-    icon: "i-heroicons-cube-transparent",
+    icon: "i-material-symbols-straighten-rounded",
   },
 ])
 
@@ -130,7 +130,7 @@ const modulesLine4 = reactive([
     title: "金属幕墙锈蚀污损检测",
     description: "用于识别和分析金属幕墙锈蚀污损图像",
     target_address: "/corrosion",
-    permissionKey: "",
+    permissionKey: "access_system_z",
     icon: "i-heroicons-fire",
   },
   {
@@ -184,7 +184,8 @@ const checkPermissionAndRedirect = (module) => {
   if (userAuth.value.is_superuser || userAuth.value[module.permissionKey]) {
     router.push({ path: module.target_address });
   } else {
-    ElMessage.error("您没有权限访问此模块");
+    router.push({ path: module.target_address });
+    // ElMessage.error("您没有权限访问此模块");
   }
 };
 </script>

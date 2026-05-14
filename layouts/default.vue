@@ -111,6 +111,10 @@ const links = reactive<DashboardLink[]>([
             label: "服务器监控",
             to: "/vibration/server-monitor",
           },
+          {
+            label: "Agent 智能配置",
+            to: "/vibration/agent-chat",
+          },
         ],
       },
     ],
@@ -127,7 +131,7 @@ const links = reactive<DashboardLink[]>([
     children: [
       {
         id: "glassCrack",
-        label: "玻璃裂痕检测",
+        label: "玻璃自爆检测",
         to: "/glass-inspection/crack",
         exact: true,
       },
@@ -252,6 +256,14 @@ const links = reactive<DashboardLink[]>([
       {
         label: "历史图片",
         to: "/stonedirty/otherpage",
+      },
+      {
+        label: "检测工作台",
+        to: "/stonedirty/detection",
+      },
+      {
+        label: "检测历史",
+        to: "/stonedirty/history",
       },
     ],
   },
