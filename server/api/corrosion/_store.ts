@@ -3,18 +3,19 @@ import { getCookie, getHeader } from 'h3'
 import { Buffer } from 'buffer'
 import { findByToken } from '../auth/_store'
 
-export interface DetectParams {
-  model: string
-  conf: number
-  iou: number
-  imgsz: number
-  max_det: number
-}
-
 export interface DetectionMetrics {
   count: number
   area_ratio: number
   avg_conf: number
+  corrosion_count: number
+  rust_spots_count: number
+  total_count: number
+  corrosion_area_ratio: number
+  rust_spots_area_ratio: number
+  total_area_ratio: number
+  corrosion_avg_conf: number
+  rust_spots_avg_conf: number
+  total_avg_conf: number
 }
 
 export interface DetectionRecord {
@@ -22,7 +23,6 @@ export interface DetectionRecord {
   userId: string
   username: string
   filename: string
-  params: DetectParams
   metrics: DetectionMetrics
   image_base64: string
   created_at: string
@@ -96,18 +96,26 @@ const toBase64 = (data: Buffer | Uint8Array) => {
 
 const makeId = () => `${Date.now()}-${Math.random().toString(16).slice(2)}`
 
-export const createMockDetection = (userId: string, username: string, file: { data: Buffer | Uint8Array; filename?: string }, params: DetectParams): DetectionRecord => {
+export const createMockDetection = (userId: string, username: string, file: { data: Buffer | Uint8Array; filename?: string }): DetectionRecord => {
   const metrics: DetectionMetrics = {
-    count: 1,
+    count: 2,
     area_ratio: 0.12,
-    avg_conf: Number((params.conf || 0.5).toFixed(3))
+    avg_conf: 0.5,
+    corrosion_count: 1,
+    rust_spots_count: 1,
+    total_count: 2,
+    corrosion_area_ratio: 0.035,
+    rust_spots_area_ratio: 0.085,
+    total_area_ratio: 0.12,
+    corrosion_avg_conf: 0.5,
+    rust_spots_avg_conf: 0.5,
+    total_avg_conf: 0.5
   }
   const record: DetectionRecord = {
     id: makeId(),
     userId,
     username,
     filename: file.filename || 'upload.png',
-    params,
     metrics,
     image_base64: toBase64(file.data),
     created_at: new Date().toISOString()
@@ -118,7 +126,7 @@ export const createMockDetection = (userId: string, username: string, file: { da
   return record
 }
 
-export const createMockJob = (userId: string, username: string, file: { data: Buffer | Uint8Array; filename?: string }, params: DetectParams): JobRecord => {
+export const createMockJob = (userId: string, username: string, file: { data: Buffer | Uint8Array; filename?: string }): JobRecord => {
   const jobId = `job_${makeId()}`
   const job: JobRecord = {
     id: jobId,
@@ -133,7 +141,7 @@ export const createMockJob = (userId: string, username: string, file: { data: Bu
   setTimeout(() => {
     job.status = 'running'
     setTimeout(() => {
-      const result = createMockDetection(userId, username, file, params)
+      const result = createMockDetection(userId, username, file)
       job.result = result
       job.status = 'done'
       job.message = 'Done'
@@ -143,13 +151,13 @@ export const createMockJob = (userId: string, username: string, file: { data: Bu
   return job
 }
 
-export const createMockBatch = (userId: string, username: string, files: Array<{ data: Buffer | Uint8Array; filename?: string }>, params: DetectParams) => {
+export const createMockBatch = (userId: string, username: string, files: Array<{ data: Buffer | Uint8Array; filename?: string }>) => {
   const batchNo = `batch_${makeId()}`
   const jobIds: string[] = []
 
   // Create jobs for each file
   files.forEach(file => {
-    const job = createMockJob(userId, username, file, params)
+    const job = createMockJob(userId, username, file)
     jobIds.push(job.id)
   })
 

@@ -55,6 +55,7 @@ const route = useRoute();
 const router = useRouter();
 const appConfig = useAppConfig();
 const {isHelpSlideoverOpen} = useDashboard();
+const TEMP_TOKEN = "temp-corrosion-access-token";
 
 // definePageMeta({
 //   middleware: "slidebar-renew",
@@ -75,7 +76,7 @@ const userPermissions = ref({
 
 
 
-const links = reactive([
+const baseLinks = [
   {
     id: "home",
     label: "首页",
@@ -310,7 +311,7 @@ const links = reactive([
       text: "用户管理",
     },
   },
-]);
+];
 
 const userAuth = ref({
   is_superuser: false,
@@ -325,62 +326,51 @@ const userAuth = ref({
   access_system_z: false,
 });
 
-function removeLinkById(linkId: any) {
-  console.log("removeLink");
-  const index = links.findIndex((link) => link.id === linkId);
-  if (index !== -1) {
-    links.splice(index, 1); // 使用 splice 确保响应性保持
+const links = computed(() => {
+  const hiddenIds = new Set<string>()
+
+  if (!userAuth.value.is_superuser) {
+    if (!userAuth.value.access_system_a) hiddenIds.add("3DBuildingModel")
+    if (!userAuth.value.access_system_b) hiddenIds.add("stoneDirty")
+    if (!userAuth.value.access_system_c) hiddenIds.add("stoneCrack")
+    if (!userAuth.value.access_system_d) hiddenIds.add("explosion")
+    if (!userAuth.value.access_system_v) hiddenIds.add("wind")
+    if (!userAuth.value.access_system_f) hiddenIds.add("segment")
+    if (!userAuth.value.access_system_g) hiddenIds.add("glassFlatness")
+    if (!userAuth.value.access_system_h) {
+      hiddenIds.add("resilienceAssessment")
+      hiddenIds.add("glassToughnessJudge")
+    }
+    if (!userAuth.value.access_system_z) hiddenIds.add("corrosion")
+    hiddenIds.add("userManage")
   }
-}
+
+  return baseLinks.filter((link) => !hiddenIds.has(link.id))
+})
 
 const getUserAuth = async () => {
   try {
     const authToken = localStorage.getItem("authToken");
+    if (!authToken || authToken === TEMP_TOKEN) {
+      localStorage.removeItem("authToken");
+      const storedAuth = JSON.parse(localStorage.getItem("userAuth") || "{}");
+      if (storedAuth?.temp_corrosion_bypass) {
+        delete storedAuth.temp_corrosion_bypass;
+        localStorage.setItem("userAuth", JSON.stringify(storedAuth));
+      }
+      return;
+    }
     const response = await axios.get("/api/account/custom/getPermissions", {
       headers: {
         Authorization: `Bearer ${authToken}`,
       },
     });
     userAuth.value = response.data.data;
-    if (userAuth.value.is_superuser) {
-      return;
-    }
-    if (!userAuth.value.access_system_a) {
-      removeLinkById("3DBuildingModel");
-    }
-    if (!userAuth.value.access_system_b) {
-      removeLinkById("stoneDirty");
-    }
-    if (!userAuth.value.access_system_c) {
-      removeLinkById("stoneCrack");
-    }
-    if (!userAuth.value.access_system_d) {
-      removeLinkById("explosion");
-    }
-    if (!userAuth.value.access_system_v) {
-      removeLinkById("wind");
-    }
-    if (!userAuth.value.access_system_f) {
-      removeLinkById("segment");
-    }
-    if (!userAuth.value.access_system_g) {
-      removeLinkById("glassFlatness");
-    }
-    if (!userAuth.value.access_system_h) {
-      removeLinkById("glassToughnessJudge");
-    }
-    if (!userAuth.value.access_system_z) {
-      removeLinkById("corrosion");
-    }
-    if (!userAuth.value.is_superuser) {
-      removeLinkById("userManage");
-    }
   } catch (error) {
     console.error("Failed to fetch permissions");
     ElMessage.error("获取用户权限失败");
   }
 };
-getUserAuth();
 
 onMounted(() => {
   getUserAuth();
@@ -398,7 +388,7 @@ const groups = computed(() => [
   {
     key: "links",
     label: "Go to",
-    commands: links.map((link) => ({
+    commands: links.value.map((link) => ({
       ...link,
       shortcuts: link.tooltip?.shortcuts,
     })),
