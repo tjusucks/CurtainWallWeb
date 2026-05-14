@@ -4,7 +4,6 @@ interface ReportItem {
   filename: string
   input: string
   output: string
-  params: any
   metrics: any
   batchId?: string
   batchOrder?: number
@@ -30,60 +29,11 @@ function padSeq(seq: number, width = 4): string {
 }
 
 async function ensureCJKFont(pdf: jsPDF): Promise<boolean> {
-  // 若已加载则直接返回
-  if ((pdf as any)._cjkLoaded) return true
-
-  const cacheKey = 'corrosion-font-noto-sc'
-  const sources = [
-    '/fonts/NotoSansSC-Regular.ttf',
-    'https://unpkg.com/@fontsource/noto-sans-sc/files/noto-sans-sc-chinese-simplified-400-normal.ttf'
-  ]
-
-  // 先尝试从 sessionStorage 拿缓存的 base64，避免重复 fetch
-  const cached = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(cacheKey) : null
-  if (cached) {
-    try {
-      pdf.addFileToVFS('NotoSansSC-Regular.ttf', cached)
-      pdf.addFont('NotoSansSC-Regular.ttf', 'NotoSansSC', 'normal')
-      pdf.setFont('NotoSansSC', 'normal')
-      ;(pdf as any)._cjkLoaded = true
-      return true
-    } catch (e) {
-      console.warn('Cached font load failed, will refetch', e)
-    }
-  }
-
-  for (const src of sources) {
-    try {
-      const res = await fetch(src)
-      if (!res.ok) throw new Error(`font fetch failed: ${res.status}`)
-      const buf = await res.arrayBuffer()
-      const base64 = bufferToBase64(buf)
-      pdf.addFileToVFS('NotoSansSC-Regular.ttf', base64)
-      pdf.addFont('NotoSansSC-Regular.ttf', 'NotoSansSC', 'normal')
-      pdf.setFont('NotoSansSC', 'normal')
-      ;(pdf as any)._cjkLoaded = true
-      if (typeof sessionStorage !== 'undefined') {
-        sessionStorage.setItem(cacheKey, base64)
-      }
-      return true
-    } catch (e) {
-      console.warn('CJK font fetch failed', src, e)
-      continue
-    }
-  }
-
-  console.warn('CJK font unavailable, fallback to Helvetica')
+  // jsPDF 在当前环境下注册大型 TTF 会触发 "Invalid array length"。
+  // 先退化为内置字体，保证导出流程可用；中文文案会降级显示。
+  void pdf
+  console.warn('CJK font loading temporarily disabled, fallback to Helvetica')
   return false
-}
-
-function bufferToBase64(buf: ArrayBuffer): string {
-  const bytes = new Uint8Array(buf)
-  let binary = ''
-  for (let i = 0; i < bytes.length; i++) {
-    binary += String.fromCharCode(bytes[i])
-  }
-  return btoa(binary)
 }
 
 export async function generatePDFReport(items: ReportItem[], chartImages?: { pie?: string, bar?: string }) {
@@ -103,6 +53,32 @@ export async function generatePDFReport(items: ReportItem[], chartImages?: { pie
   const pageHeight = pdf.internal.pageSize.getHeight()
   const margin = 10
   const contentWidth = pageWidth - margin * 2
+  const setReportFont = (style: 'normal' | 'bold' = 'normal') => {
+    if (!hasCJK) {
+      pdf.setFont('helvetica', style)
+    } else {
+      pdf.setFont('NotoSansSC', 'normal')
+    }
+  }
+  const safeSplitText = (text: string, maxWidth: number): string[] => {
+    try {
+      setReportFont('normal')
+      const result = pdf.splitTextToSize(text, maxWidth)
+      if (Array.isArray(result) && result.length) {
+        return result.map((line) => String(line))
+      }
+    } catch (e) {
+      console.warn('splitTextToSize failed, fallback to manual wrapping', e)
+    }
+
+    const plain = String(text || '')
+    const chunkSize = Math.max(8, Math.floor(maxWidth / 2))
+    const lines: string[] = []
+    for (let i = 0; i < plain.length; i += chunkSize) {
+      lines.push(plain.slice(i, i + chunkSize))
+    }
+    return lines.length ? lines : ['']
+  }
 
   let y = margin
 
@@ -128,11 +104,13 @@ export async function generatePDFReport(items: ReportItem[], chartImages?: { pie
     const chartWidth = (contentWidth / 2) - 5
     
     try {
-      if (chartImages.pie) {
+      if (chartImages.pie && chartImages.bar) {
         pdf.addImage(chartImages.pie, 'PNG', margin, y, chartWidth, chartHeight)
-      }
-      if (chartImages.bar) {
         pdf.addImage(chartImages.bar, 'PNG', margin + chartWidth + 10, y, chartWidth, chartHeight)
+      } else if (chartImages.bar) {
+        pdf.addImage(chartImages.bar, 'PNG', margin, y, contentWidth, chartHeight)
+      } else if (chartImages.pie) {
+        pdf.addImage(chartImages.pie, 'PNG', margin, y, chartWidth, chartHeight)
       }
       if (chartImages.pie || chartImages.bar) {
         y += chartHeight + 10
@@ -167,15 +145,13 @@ export async function generatePDFReport(items: ReportItem[], chartImages?: { pie
 
     // 批次标题
     pdf.setFontSize(13)
-    if (!hasCJK) pdf.setFont('helvetica', 'bold')
-    else pdf.setFont('NotoSansSC', 'normal')
+    setReportFont('bold')
     const batchLabel = bid !== 'N/A' ? bid : `Batch-${padSeq(labelNumber, 2)}`
     const batchTitle = hasCJK
       ? `批次 #${padSeq(labelNumber, 2)} (${batchLabel})`
       : `Batch #${padSeq(labelNumber, 2)} (${batchLabel})`
     pdf.text(batchTitle, margin, y)
-    if (!hasCJK) pdf.setFont('helvetica', 'normal')
-    else pdf.setFont('NotoSansSC', 'normal')
+    setReportFont('normal')
     y += 8
 
     for (let i = 0; i < list.length; i++) {
@@ -192,11 +168,9 @@ export async function generatePDFReport(items: ReportItem[], chartImages?: { pie
 
       // 编号
       pdf.setFontSize(12)
-      if (!hasCJK) pdf.setFont('helvetica', 'bold')
-      else pdf.setFont('NotoSansSC', 'normal')
+      setReportFont('bold')
       pdf.text(`ID: ${itemSeqLabel}`, margin, y)
-      if (!hasCJK) pdf.setFont('helvetica', 'normal')
-      else pdf.setFont('NotoSansSC', 'normal')
+      setReportFont('normal')
       y += 6
 
       // 文件名
@@ -213,37 +187,24 @@ export async function generatePDFReport(items: ReportItem[], chartImages?: { pie
         if (inputData) {
           pdf.addImage(inputData, 'JPEG', margin, y, imgWidth, imgHeight, undefined, 'FAST')
           pdf.setFontSize(10)
-          if (!hasCJK) pdf.setFont('helvetica', 'bold')
-          else pdf.setFont('NotoSansSC', 'normal')
+          setReportFont('bold')
           pdf.text('Before', margin, y + imgHeight + 6)
-          if (!hasCJK) pdf.setFont('helvetica', 'normal')
-          else pdf.setFont('NotoSansSC', 'normal')
+          setReportFont('normal')
         }
 
         const outputData = await getImageData(item.output)
         if (outputData) {
           pdf.addImage(outputData, 'JPEG', margin + imgWidth + 4, y, imgWidth, imgHeight, undefined, 'FAST')
           pdf.setFontSize(10)
-          if (!hasCJK) pdf.setFont('helvetica', 'bold')
-          else pdf.setFont('NotoSansSC', 'normal')
+          setReportFont('bold')
           pdf.text('After', margin + imgWidth + 4, y + imgHeight + 6)
-          if (!hasCJK) pdf.setFont('helvetica', 'normal')
-          else pdf.setFont('NotoSansSC', 'normal')
+          setReportFont('normal')
         }
       } catch (e) {
         console.error('Error adding image to PDF', e)
       }
 
       y += imgHeight + 10
-
-      // 信息块（表格形式突出关键数据）
-      const areaRatio = item.metrics?.area_ratio ?? 0
-      const countVal = item.metrics?.count ?? 0
-      const avgConf = item.metrics?.avg_conf ?? 0
-      const classification = item.metrics?.classification
-      const confThresh = item.params.conf
-      const iouThresh = item.params.iou
-      const modelName = item.params.model || 'N/A'
 
       const tableX = margin
       const tableWidth = contentWidth
@@ -253,22 +214,31 @@ export async function generatePDFReport(items: ReportItem[], chartImages?: { pie
       const pad = 4
 
       const measureHeight = (lines: string[]) => Math.max(baseRow, lines.length * lineHeight + pad)
-
-      const metricValuesRaw = [
-        String(countVal),
-        `${(areaRatio * 100).toFixed(2)}%`,
-        avgConf ? avgConf.toFixed(2) : '0'
+      const fmtRatio = (value?: number) => (typeof value === 'number' ? `${(value * 100).toFixed(2)}%` : '-')
+      const fmtConf = (value?: number) => (typeof value === 'number' ? `${(value * 100).toFixed(1)}%` : '-')
+      const m = item.metrics || {}
+      const metricRows = [
+        [
+          `${hasCJK ? '锈蚀数量' : 'Corrosion Count'}: ${m.corrosion_count ?? 0}`,
+          `${hasCJK ? '锈斑数量' : 'Rust Spots Count'}: ${m.rust_spots_count ?? 0}`,
+          `${hasCJK ? '总数量' : 'Total Count'}: ${m.total_count ?? m.count ?? 0}`,
+        ],
+        [
+          `${hasCJK ? '锈蚀面积占比' : 'Corrosion Area'}: ${fmtRatio(m.corrosion_area_ratio)}`,
+          `${hasCJK ? '锈斑面积占比' : 'Rust Spots Area'}: ${fmtRatio(m.rust_spots_area_ratio)}`,
+          `${hasCJK ? '整体面积占比' : 'Total Area'}: ${fmtRatio(m.total_area_ratio ?? m.area_ratio)}`,
+        ],
+        [
+          `${hasCJK ? '锈蚀平均置信度' : 'Corrosion Conf'}: ${fmtConf(m.corrosion_avg_conf)}`,
+          `${hasCJK ? '锈斑平均置信度' : 'Rust Spots Conf'}: ${fmtConf(m.rust_spots_avg_conf)}`,
+          `${hasCJK ? '整体平均置信度' : 'Total Conf'}: ${fmtConf(m.total_avg_conf ?? m.avg_conf)}`,
+        ],
       ]
-      const metricLines = metricValuesRaw.map((val) => pdf.splitTextToSize(val, colWidth - 4))
-      const metricRowHeight = measureHeight(metricLines.flat())
 
-      const modelLines = pdf.splitTextToSize(modelName, colWidth - 4)
-      const paramsValuesRaw: (string | string[])[] = [modelLines, confThresh?.toString() ?? 'N/A', iouThresh?.toString() ?? 'N/A']
-      const paramsLines = paramsValuesRaw.map((val) => (Array.isArray(val) ? val : [val]))
-      const paramsRowHeight = measureHeight(paramsLines.flat())
-
-      const headerHeight = baseRow
-      const neededHeight = headerHeight + metricRowHeight + paramsRowHeight + 10
+      setReportFont('normal')
+      const metricLines = metricRows.map((row) => row.map((val) => safeSplitText(val, colWidth - 4)))
+      const rowHeights = metricLines.map((row) => measureHeight(row.flat()))
+      const neededHeight = rowHeights.reduce((sum, height) => sum + height, 0) + 10
       if (y > pageHeight - neededHeight) {
         pdf.addPage()
         y = margin
@@ -278,75 +248,14 @@ export async function generatePDFReport(items: ReportItem[], chartImages?: { pie
       pdf.setLineWidth(0.1)
       pdf.setFontSize(9)
 
-      // Metrics 表头
-      const header = [hasCJK ? '数量' : 'Count', hasCJK ? '面积占比' : 'Area %', hasCJK ? '平均置信度' : 'Avg Conf']
-      for (let c = 0; c < 3; c++) {
-        const x = tableX + c * colWidth
-        pdf.rect(x, y, colWidth, headerHeight)
-        if (!hasCJK) pdf.setFont('helvetica', 'bold')
-        else pdf.setFont('NotoSansSC', 'normal')
-        pdf.text(header[c], x + 2, y + 5)
-      }
-      if (!hasCJK) pdf.setFont('helvetica', 'normal')
-      else pdf.setFont('NotoSansSC', 'normal')
-
-      // Metrics 数值行（自适应行高）
-      const metricY = y + headerHeight
-      for (let c = 0; c < 3; c++) {
-        const x = tableX + c * colWidth
-        pdf.rect(x, metricY, colWidth, metricRowHeight)
-        pdf.text(metricLines[c], x + 2, metricY + 5)
-      }
-
-      // Params 行：Model / Conf / IOU（自适应行高）
-      const paramsY = metricY + metricRowHeight
-      const paramsHeader = [hasCJK ? '模型' : 'Model', 'Conf', 'IOU']
-      for (let c = 0; c < 3; c++) {
-        const x = tableX + c * colWidth
-        pdf.rect(x, paramsY, colWidth, paramsRowHeight)
-        if (!hasCJK) pdf.setFont('helvetica', 'bold')
-        else pdf.setFont('NotoSansSC', 'normal')
-        pdf.text(paramsHeader[c], x + 2, paramsY + 5)
-        if (!hasCJK) pdf.setFont('helvetica', 'normal')
-        else pdf.setFont('NotoSansSC', 'normal')
-        pdf.text(paramsLines[c], x + 2, paramsY + 10)
-      }
-
-      // 如果有分类结果，添加分类信息行（放在最下面，带颜色）
-      let finalY = paramsY + paramsRowHeight
-      if (classification && classification.label) {
-        const classHeader = hasCJK ? '分类' : 'Classification'
-        const classLabel = classification.label
-        const classConf = `${(classification.confidence * 100).toFixed(1)}%`
-        const classRowHeight = baseRow
-        
-        // 第一列：浅蓝色背景，深蓝色文字
-        pdf.setFillColor(173, 216, 230) // 浅蓝色背景
-        pdf.setDrawColor(180)
-        pdf.rect(tableX, finalY, colWidth, classRowHeight, 'FD')
-        pdf.setTextColor(0, 51, 102) // 深蓝色文字
-        if (!hasCJK) pdf.setFont('helvetica', 'bold')
-        else pdf.setFont('NotoSansSC', 'normal')
-        pdf.text(classHeader, tableX + 2, finalY + 5)
-        if (!hasCJK) pdf.setFont('helvetica', 'normal')
-        else pdf.setFont('NotoSansSC', 'normal')
-        
-        // 第二列：深蓝色背景，浅蓝色文字
-        pdf.setFillColor(0, 51, 102) // 深蓝色背景
-        pdf.rect(tableX + colWidth, finalY, colWidth, classRowHeight, 'FD')
-        pdf.setTextColor(173, 216, 230) // 浅蓝色文字
-        pdf.text(classLabel, tableX + colWidth + 2, finalY + 5)
-        
-        // 第三列：深蓝色背景，浅蓝色文字
-        pdf.setFillColor(0, 51, 102) // 深蓝色背景
-        pdf.rect(tableX + colWidth * 2, finalY, colWidth, classRowHeight, 'FD')
-        pdf.setTextColor(173, 216, 230) // 浅蓝色文字
-        pdf.text(classConf, tableX + colWidth * 2 + 2, finalY + 5)
-        
-        // 恢复默认文字颜色
-        pdf.setTextColor(0, 0, 0) // 黑色
-        
-        finalY += classRowHeight
+      let finalY = y
+      for (let r = 0; r < metricLines.length; r++) {
+        for (let c = 0; c < 3; c++) {
+          const x = tableX + c * colWidth
+          pdf.rect(x, finalY, colWidth, rowHeights[r])
+          pdf.text(metricLines[r][c], x + 2, finalY + 5)
+        }
+        finalY += rowHeights[r]
       }
 
       y = finalY + 12 // 下一项的间距
