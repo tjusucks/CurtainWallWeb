@@ -238,6 +238,10 @@ const login = async () => {
     if (token) {
       localStorage.setItem("authToken", token);
       localStorage.setItem("email", loginForm.value.email);
+      localStorage.setItem("auth_user", JSON.stringify({
+        username: loginForm.value.email,
+        email: loginForm.value.email
+      }));
 
       // 验证 token 是否正确存储
       const storedToken = localStorage.getItem("authToken");

@@ -3,6 +3,7 @@ import { computed } from 'vue'
 interface AuthUser {
   id: string
   username: string
+  email?: string
   role?: string
 }
 
@@ -51,10 +52,12 @@ export function useAuth() {
     if (process.client) {
       localStorage.setItem(TOKEN_KEY, payload.token)
       localStorage.setItem(USER_KEY, JSON.stringify(payload.user))
+      localStorage.setItem('email', payload.user.email || payload.user.username)
       localStorage.setItem(AUTH_STATE_KEY, JSON.stringify({
         is_superuser: payload.user.role === 'admin',
         role: payload.user.role,
-        username: payload.user.username
+        username: payload.user.username,
+        email: payload.user.email || payload.user.username
       }))
     }
     console.log('[useAuth] ✅ Session set, token length:', payload.token.length)
