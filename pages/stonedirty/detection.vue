@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { usePendingQueue } from '~/composables/usePendingQueue'
 import { exportSingleDetectionPdf } from '~/utils/detectionPdfExport'
+import { compressImage } from '~/utils/compressImage'
 import ImageNamingDialog from './components/ImageNamingDialog.vue'
 import PendingQueuePanelImproved from './components/PendingQueuePanelImproved.vue'
 import { createDetectionTask, getDetectionTask, getDetectionSignedUrl } from '~/api/detections'
@@ -25,7 +26,7 @@ const filesToProcess = ref<File[]>([])
 const currentFileIndex = ref(0)
 
 // 处理文件选择
-function handleFileSelect(files: FileList | null) {
+async function handleFileSelect(files: FileList | null) {
   if (!files || files.length === 0) return
 
   // 验证所有文件
@@ -52,7 +53,21 @@ function handleFileSelect(files: FileList | null) {
     return
   }
 
-  filesToProcess.value = validFiles
+  // 压缩图片以加快上传速度
+  try {
+    const compressedFiles = await Promise.all(
+      validFiles.map(async (file) => {
+        if (file.size > 1024 * 1024) {
+          return await compressImage(file)
+        }
+        return file
+      })
+    )
+    filesToProcess.value = compressedFiles
+  } catch {
+    filesToProcess.value = validFiles
+  }
+
   currentFileIndex.value = 0
   processNextFile()
 }
