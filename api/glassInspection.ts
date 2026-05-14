@@ -1,4 +1,3 @@
-import request from '~/utils/request'
 import type { DetectionResultData, FlatnessFieldName } from '~/types/glassInspection'
 
 export async function detectGlassCrack(userId: string, files: File[]): Promise<DetectionResultData> {
@@ -6,13 +5,9 @@ export async function detectGlassCrack(userId: string, files: File[]): Promise<D
   formData.append('userId', userId)
   files.forEach((file) => formData.append('images', file))
 
-  return await request({
-    url: '/api/detect/glass-crack',
-    method: 'post',
-    data: formData,
-    headers: {
-      'Content-Type': 'multipart/form-data'
-    }
+  return await $fetch('/api/detect/glass-crack', {
+    method: 'POST',
+    body: formData,
   }) as DetectionResultData
 }
 
@@ -30,12 +25,8 @@ export async function detectGlassFlatness(
     }
   })
 
-  return await request({
-    url: '/api/detect/glass-flatness',
-    method: 'post',
-    data: formData,
-    headers: {
-      'Content-Type': 'multipart/form-data'
-    }
+  return await $fetch('/api/detect/glass-flatness', {
+    method: 'POST',
+    body: formData,
   }) as DetectionResultData
 }

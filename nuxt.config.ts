@@ -26,6 +26,10 @@ export default defineNuxtConfig({
 
   nitro: {
     devProxy: {
+      '/api/detect': {
+        target: 'http://8.153.161.229:8003',
+        changeOrigin: true,
+      },
       '/api': {
         target: 'http://8.159.143.133:8000',
         changeOrigin: true,
@@ -70,11 +74,11 @@ export default defineNuxtConfig({
     monitorServiceOrigin:
       process.env.NUXT_SERVER_MONITOR_UPSTREAM || 'http://8.159.143.133:8080',
     apiBase: process.env.NUXT_API_BASE_URL || 'http://8.159.143.133:8000',
-    glassDetectionApiBase: process.env.NUXT_GLASS_DETECTION_API_BASE || 'http://47.102.208.89:8007',
+    glassDetectionApiBase: process.env.NUXT_GLASS_DETECTION_API_BASE || 'http://8.153.161.229:9000',
     benchmarkPath: process.env.BENCHMARK_PATH || '/benchmarks',
     public: {
       apiBase: process.env.NUXT_API_BASE_URL || 'http://8.159.143.133:8000',
-      glassDetectionApiBase: process.env.NUXT_GLASS_DETECTION_API_BASE || 'http://47.102.208.89:8007',
+      glassDetectionApiBase: process.env.NUXT_GLASS_DETECTION_API_BASE || 'http://8.153.161.229:9000',
       benchmarkPath: process.env.BENCHMARK_PATH || '/benchmarks',
       serverMonitorApiPrefix: process.env.NUXT_PUBLIC_SERVER_MONITOR_PREFIX || '/m-api',
       serverMonitorBase: process.env.NUXT_PUBLIC_SERVER_MONITOR_BASE || ''
