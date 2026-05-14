@@ -57,7 +57,7 @@ async function handleFileSelect(files: FileList | null) {
   try {
     const compressedFiles = await Promise.all(
       validFiles.map(async (file) => {
-        if (file.size > 1024 * 1024) {
+        if (file.size > 100 * 1024) {
           return await compressImage(file)
         }
         return file
@@ -151,25 +151,88 @@ async function uploadQueueItem(item: any) {
     return
   }
 
-  updateQueueItem(item.id, { status: 'uploading' })
+  updateQueueItem(item.id, { status: 'uploading', uploadProgress: 0 })
   try {
     const task = await createDetectionTask(
       item.file,
       item.formData,
       (progress: number) => {
-        updateQueueItem(item.id, { uploadProgress: progress })
+        updateQueueItem(item.id, { uploadProgress: Math.min(progress, 90) })
       }
     )
 
     const taskId = task.id || task.data?.id
-    updateQueueItem(item.id, {
-      status: 'done',
-      uploadProgress: 100,
-      taskId: String(taskId),
-      errorMessage: undefined
-    })
+    updateQueueItem(item.id, { taskId: String(taskId), uploadProgress: 95 })
 
-    ElMessage.success(`${item.customName} 已提交`)
+    const taskStatus = task.status || task.data?.status
+    if (taskStatus === 'done') {
+      updateQueueItem(item.id, {
+        status: 'done',
+        uploadProgress: 100,
+        errorMessage: undefined
+      })
+      ElMessage.success(`${item.customName} 检测完成`)
+      return
+    }
+
+    if (taskStatus === 'failed') {
+      const errMsg = task.errorMessage || task.data?.errorMessage || '检测失败'
+      updateQueueItem(item.id, { status: 'failed', errorMessage: errMsg })
+      ElMessage.error(`${item.customName} ${errMsg}`)
+      return
+    }
+
+    let pollCount = 0
+    const poll = async (): Promise<void> => {
+      pollCount++
+      const progress = Math.min(95 + pollCount * 1, 99)
+      updateQueueItem(item.id, { uploadProgress: progress })
+
+      try {
+        const latest = await getDetectionTask(taskId)
+        const s = latest.status || latest.data?.status
+
+        if (s === 'done') {
+          updateQueueItem(item.id, {
+            status: 'done',
+            uploadProgress: 100,
+            errorMessage: undefined
+          })
+          ElMessage.success(`${item.customName} 检测完成`)
+          return
+        }
+
+        if (s === 'failed') {
+          const errMsg = latest.errorMessage || latest.data?.errorMessage || '检测失败'
+          updateQueueItem(item.id, { status: 'failed', errorMessage: errMsg })
+          ElMessage.error(`${item.customName} ${errMsg}`)
+          return
+        }
+
+        if (pollCount >= 300) {
+          updateQueueItem(item.id, {
+            status: 'failed',
+            errorMessage: '检测超时，请稍后查看结果'
+          })
+          ElMessage.warning(`${item.customName} 检测超时，请稍后在历史记录中查看`)
+          return
+        }
+
+        setTimeout(poll, 2000)
+      } catch {
+        if (pollCount >= 300) {
+          updateQueueItem(item.id, {
+            status: 'failed',
+            errorMessage: '检测超时，请稍后查看结果'
+          })
+          ElMessage.warning(`${item.customName} 检测超时，请稍后在历史记录中查看`)
+          return
+        }
+        setTimeout(poll, 2000)
+      }
+    }
+
+    setTimeout(poll, 2000)
   } catch (error) {
     const message = (error as Error).message || '上传失败'
     updateQueueItem(item.id, { status: 'failed', errorMessage: message })
@@ -464,6 +527,7 @@ async function handleExportCurrentReport() {
 .detection-page {
   min-height: calc(100vh - 84px);
   padding: 20px;
+  overflow-y: auto;
 }
 
 .detection-container {

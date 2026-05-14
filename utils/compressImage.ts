@@ -8,7 +8,7 @@ export interface CompressOptions {
 const DEFAULT_OPTIONS: CompressOptions = {
   maxWidth: 1920,
   maxHeight: 1920,
-  quality: 0.8,
+  quality: 0.6,
   outputFormat: 'image/jpeg',
 }
 

@@ -29,6 +29,7 @@ export async function createDetectionTask(file: File, payload: any, onUploadProg
     headers: {
       ...getAuthHeaders()
     },
+    timeout: 300000,
     onUploadProgress: (e: ProgressEvent) => {
       if (!e.total || !onUploadProgress) return
       onUploadProgress(Math.round((e.loaded / e.total) * 100))

@@ -383,7 +383,7 @@ watch(detailVisible, (isVisible) => {
 </template>
 
 <style scoped>
-.history-page { min-height: calc(100vh - 84px); padding: 22px }
+.history-page { min-height: calc(100vh - 84px); padding: 22px; overflow-y: auto }
 .header-row { display:flex; align-items:center; justify-content:space-between }
 .search-row { margin-bottom:14px }
 .pager-row { margin-top:14px; display:flex; justify-content:flex-end }
