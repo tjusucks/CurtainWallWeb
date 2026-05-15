@@ -340,7 +340,7 @@ const userAuth = ref({
 });
 
 const links = computed(() => {
-  const hiddenIds = new Set<string>()c
+  const hiddenIds = new Set<string>();
 
   if (!userAuth.value.is_superuser) {
     if (!userAuth.value.access_system_a) hiddenIds.add("3DBuildingModel")
