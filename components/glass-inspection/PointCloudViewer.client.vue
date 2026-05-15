@@ -314,7 +314,7 @@ function buildSceneData(resolved: ResolvedPointCloud): SceneData | null {
     target: [centerX, centerY, centerZ],
     heightBandPlanes,
     fitPlaneZ: shiftZ,
-    zExaggeration
+    zExaggeration,
     cameraDistance: frameRadius,
     target: [centerX, centerY, centerZ],
     viewTarget: [centerX + viewOffsetX, centerY, centerZ]
