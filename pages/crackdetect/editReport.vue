@@ -572,6 +572,8 @@ const handlePreviewClose = () => {
   previewVisible.value = false
 }
 
+const DEFAULT_LLM_MODEL = 'hybrid-default'
+
 // LLM智能分析
 const analyzeCrackWithLLM = async (imageIndex) => {
   try {
@@ -586,8 +588,11 @@ const analyzeCrackWithLLM = async (imageIndex) => {
     
     // 调用LLM分析接口
     // 直接使用完整URL，避免代理问题
-    const response = await axios.post('http://110.42.214.164:8001/llm-analyze', {
-      url: image.image_path
+    const response = await axios.post('http://110.42.214.164:8001/llm-analyze', null, {
+      params: {
+        url: image.image_path,
+        model: DEFAULT_LLM_MODEL
+      }
     })
     
     console.log('LLM API response:', response.data)

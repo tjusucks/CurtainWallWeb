@@ -1,12 +1,14 @@
 /**
  * 接口名称: 批量/数据集检测
  * 路径: POST /api/corrosion/batch -> POST {apiBase}/detect/batch
- * 输入: FormData { files[], dataset_name?, model, conf, iou }
+ * 输入: FormData { files[], dataset_name? }
  * 输出: { success: boolean; data: { batch_no, total_files, status, message } }
  * 说明: 按用户鉴权，未配置 apiBase 时使用本地 mock。
  */
 import { defineEventHandler, readMultipartFormData, createError, getCookie } from 'h3'
 import { readUserFromEvent, createMockBatch } from './_store'
+
+const DEFAULT_MODEL = 'hybrid-default'
 
 const readToken = (event: any) => {
   // 优先从 Authorization header 读取
@@ -31,6 +33,7 @@ export default defineEventHandler(async (event) => {
     }
 
     const fd = new FormData()
+    let hasModel = false
     for (const part of form) {
       if (part.filename) {
         // 将文件名中的 / 替换为 \ (macOS 转 Windows 路径格式)
@@ -38,9 +41,16 @@ export default defineEventHandler(async (event) => {
         const blob = new Blob([new Uint8Array(part.data)], { type: part.type || 'application/octet-stream' })
         // 注意：后端接受 files 字段
         fd.append('files', blob, windowsFilename)
-      } else {
-        fd.append(part.name || '', part.data.toString())
+      } else if (part.name === 'dataset_name') {
+        fd.append(part.name, part.data.toString())
+      } else if (part.name === 'model') {
+        hasModel = true
+        fd.append('model', part.data.toString())
       }
+    }
+
+    if (!hasModel) {
+      fd.append('model', DEFAULT_MODEL)
     }
 
     const token = readToken(event)
@@ -74,14 +84,11 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: '未收到上传数据' })
   }
 
-  const params: any = { model: 'yolo11s.pt', conf: 0.25, iou: 0.45 }
   const fileParts: any[] = []
 
   for (const part of form) {
     if (part.filename) {
       fileParts.push(part)
-    } else {
-      params[part.name || ''] = part.data.toString()
     }
   }
 
@@ -90,13 +97,7 @@ export default defineEventHandler(async (event) => {
   }
 
   // 创建 Mock 批次
-  const batch = createMockBatch(user.id, user.username, fileParts, {
-    model: String(params.model),
-    conf: Number(params.conf),
-    iou: Number(params.iou),
-    imgsz: Number(params.imgsz ?? 640),
-    max_det: Number(params.max_det ?? 300)
-  })
+  const batch = createMockBatch(user.id, user.username, fileParts)
 
   return {
     success: true,

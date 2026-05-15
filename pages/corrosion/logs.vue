@@ -61,5 +61,9 @@ const { logs } = useCorrosion()
   max-width: none;
   min-width: 0;
   align-self: stretch;
+  min-height: 0;
+  height: calc(100vh - 48px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 </style>
