@@ -17,6 +17,14 @@ export default defineNuxtConfig({
 
   nitro: {
     devProxy: {
+      '/api/detect': {
+        target: 'http://8.153.161.229:8003',
+        changeOrigin: true,
+      },
+      '/api': {
+        target: 'http://8.159.143.133:8000',
+        changeOrigin: true,
+      },
       '/predict': {
         target: 'http://47.102.208.89:8007',
         changeOrigin: true
@@ -57,38 +65,22 @@ export default defineNuxtConfig({
 
   // 确保环境变量在运行时可用
   runtimeConfig: {
-  // 服务端代理 `/m-api/*` 时使用的监控服务上游根地址。
-  monitorServiceOrigin:
-    process.env.NUXT_SERVER_MONITOR_UPSTREAM || 'http://8.159.143.133:8080',
-
-  apiBase: process.env.NUXT_API_BASE_URL || 'http://8.159.143.133:8000',
-
-  corrosionApiBase:
-    process.env.NUXT_CORROSION_API_BASE_URL || 'http://8.153.161.229:18000',
-
-  glassDetectionApiBase:
-    process.env.NUXT_GLASS_DETECTION_API_BASE || 'http://47.102.208.89:8007',
-
-  benchmarkPath: process.env.BENCHMARK_PATH || '/benchmarks',
-
-  public: {
+    // 服务端代理 `/m-api/*` 时使用的监控服务上游根地址。
+    monitorServiceOrigin: process.env.NUXT_SERVER_MONITOR_UPSTREAM || 'http://8.159.143.133:8080',
     apiBase: process.env.NUXT_API_BASE_URL || 'http://8.159.143.133:8000',
-
-    corrosionApiBase:
-      process.env.NUXT_CORROSION_API_BASE_URL || 'http://8.153.161.229:18000',
-
-    glassDetectionApiBase:
-      process.env.NUXT_GLASS_DETECTION_API_BASE || 'http://47.102.208.89:8007',
-
+    corrosionApiBase: process.env.NUXT_CORROSION_API_BASE_URL || 'http://8.153.161.229:18000',
+    glassDetectionApiBase: process.env.NUXT_GLASS_DETECTION_API_BASE || 'http://47.102.208.89:8007',
     benchmarkPath: process.env.BENCHMARK_PATH || '/benchmarks',
 
-    serverMonitorApiPrefix:
-      process.env.NUXT_PUBLIC_SERVER_MONITOR_PREFIX || '/m-api',
-
-    serverMonitorBase:
-      process.env.NUXT_PUBLIC_SERVER_MONITOR_BASE || ''
-  }
-},
+    public: {
+      apiBase: process.env.NUXT_API_BASE_URL || 'http://8.159.143.133:8000',
+      corrosionApiBase: process.env.NUXT_CORROSION_API_BASE_URL || 'http://8.153.161.229:18000',
+      glassDetectionApiBase: process.env.NUXT_GLASS_DETECTION_API_BASE || 'http://8.153.161.229:8003',
+      benchmarkPath: process.env.BENCHMARK_PATH || '/benchmarks',
+      serverMonitorApiPrefix: process.env.NUXT_PUBLIC_SERVER_MONITOR_PREFIX || '/m-api',
+      serverMonitorBase: process.env.NUXT_PUBLIC_SERVER_MONITOR_BASE || ''
+    }
+  },
 
   image: {
     domains: ['8.159.143.133', '8.153.161.229', '110.42.214.164', '47.102.208.89']

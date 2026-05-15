@@ -30,6 +30,14 @@
           <div class="gi-legend-swatch" style="background-color: #ef4444; color: #ef4444;" />
           <span>红色：高于拟合平面</span>
         </div>
+        <div class="gi-legend-item">
+          <div class="gi-legend-swatch" style="background-color: #34d399; color: #34d399;" />
+          <span>青色基准面：拟合平面 z=0</span>
+        </div>
+        <div v-if="hasHeightBand" class="gi-legend-item">
+          <div class="gi-legend-swatch" style="background-color: #6b7280; color: #6b7280;" />
+          <span>灰色：平整度高度带</span>
+        </div>
       </div>
 
       <p v-if="legendText" class="gi-legend-note">{{ legendText }}</p>
@@ -43,12 +51,20 @@
 <script setup lang="ts">
 import * as THREE from 'three'
 import { OrbitControls } from 'three/examples/jsm/controls/OrbitControls.js'
-import type { PointCloudData } from '~/types/glassInspection'
+import type { PointCloudData, FitHeightBand } from '~/types/glassInspection'
+
+interface HeightBandPlaneDisplay {
+  name: string
+  corners: [number, number, number][]
+  color: string
+  opacity: number
+}
 
 interface ResolvedPointCloud {
   points: number[][]
   heights: number[]
   source: 'projected' | 'raw'
+  fitHeightBand?: FitHeightBand
 }
 
 interface SceneStats {
@@ -88,6 +104,9 @@ interface SceneData {
   planePadding: number
   cameraDistance: number
   target: [number, number, number]
+  heightBandPlanes?: HeightBandPlaneDisplay[]
+  fitPlaneZ?: number
+  zExaggeration: number
   viewTarget: [number, number, number]
 }
 
@@ -101,6 +120,7 @@ const hostRef = ref<HTMLDivElement | null>(null)
 const sceneReady = ref(false)
 const legendText = ref('')
 const legendSource = ref<'projected' | 'raw'>('projected')
+const hasHeightBand = computed(() => props.data.fit_height_band?.enabled === true)
 
 const viewPresets = reactive<Record<ViewName, [number, number, number]>>({
   reset: [0, 0, 0],
@@ -130,7 +150,7 @@ function resolvePointCloudData(data: PointCloudData): ResolvedPointCloud {
         ? data.projected_dists.map((value) => Number(value))
         : points.map((point) => Number(point[2] ?? 0))
 
-    return { points, heights, source: 'projected' }
+    return { points, heights, source: 'projected', fitHeightBand: data.fit_height_band }
   }
 
   if (Array.isArray(data.points) && data.points.length > 0) {
@@ -143,7 +163,7 @@ function resolvePointCloudData(data: PointCloudData): ResolvedPointCloud {
         ? data.dists.map((value) => Number(value))
         : points.map((point) => Number(point[2] ?? 0))
 
-    return { points, heights, source: 'raw' }
+    return { points, heights, source: 'raw', fitHeightBand: data.fit_height_band }
   }
 
   return { points: [], heights: [], source: 'projected' }
@@ -186,18 +206,28 @@ function buildSceneData(resolved: ResolvedPointCloud): SceneData | null {
 
   const xMmRaw = resolved.points.map((point) => point[0] * 1000)
   const yMmRaw = resolved.points.map((point) => point[1] * 1000)
-  const heightsMm = resolved.heights.map((value) => value * 1000)
+  const heightsMmRaw = resolved.heights.map((value) => value * 1000)
 
   const minRawX = Math.min(...xMmRaw)
   const maxRawX = Math.max(...xMmRaw)
   const minRawY = Math.min(...yMmRaw)
   const maxRawY = Math.max(...yMmRaw)
-  const minRawZ = Math.min(...heightsMm)
-  const maxRawZ = Math.max(...heightsMm)
+  const minRawZRaw = Math.min(...heightsMmRaw)
+  const maxRawZRaw = Math.max(...heightsMmRaw)
 
   const xSpanMm = maxRawX - minRawX
   const ySpanMm = maxRawY - minRawY
+  const zSpanMmRaw = maxRawZRaw - minRawZRaw
+  const dominantSpanRaw = Math.max(xSpanMm, ySpanMm, zSpanMmRaw, 1)
+
+  const avgXySpan = (xSpanMm + ySpanMm) / 2
+  const zExaggeration = Math.max(1, Math.min(20, avgXySpan / Math.max(zSpanMmRaw, 0.001) / 25))
+
+  const heightsMm = heightsMmRaw.map((h) => h * zExaggeration)
+  const minRawZ = Math.min(...heightsMm)
+  const maxRawZ = Math.max(...heightsMm)
   const zSpanMm = maxRawZ - minRawZ
+
   const dominantSpan = Math.max(xSpanMm, ySpanMm, zSpanMm, 1)
   const planePadding = Math.max(dominantSpan * 0.18, 18)
 
@@ -231,17 +261,33 @@ function buildSceneData(resolved: ResolvedPointCloud): SceneData | null {
   const frameRadius = Math.hypot(frameMaxX, frameMaxY, frameMaxZ) / 2
   const viewOffsetX = Math.min(Math.max(frameMaxX * 0.08, 28), frameMaxX * 0.18)
 
+  let heightBandPlanes: HeightBandPlaneDisplay[] | undefined
+  const fitHeightBand = resolved.fitHeightBand
+  if (fitHeightBand?.enabled && fitHeightBand.boundary_planes.length > 0) {
+    const renderHint = fitHeightBand.render_hint || { color: '#6b7280', opacity: 0.18 }
+    heightBandPlanes = fitHeightBand.boundary_planes.map((plane) => ({
+      name: plane.name,
+      corners: plane.corners.map((corner) => [
+        corner[0] * 1000 + shiftX,
+        corner[1] * 1000 + shiftY,
+        corner[2] * 1000 * zExaggeration + shiftZ,
+      ]) as [number, number, number][],
+      color: renderHint.color,
+      opacity: renderHint.opacity,
+    }))
+  }
+
   return {
     displayPoints,
     heightsMm,
     stats: {
       count: displayPoints.length,
-      minMm: minRawZ,
-      maxMm: maxRawZ,
-      rangeMm: zSpanMm,
+      minMm: minRawZRaw,
+      maxMm: maxRawZRaw,
+      rangeMm: zSpanMmRaw,
       xSpanMm,
       ySpanMm,
-      zSpanMm
+      zSpanMm: zSpanMmRaw
     },
     frame: {
       maxX: frameMaxX,
@@ -261,9 +307,14 @@ function buildSceneData(resolved: ResolvedPointCloud): SceneData | null {
       centerZ
     },
     gridStep: getGridStep(dominantSpan),
-    pointSize: THREE.MathUtils.clamp(dominantSpan / 150, 4, 7),
+    pointSize: THREE.MathUtils.clamp(dominantSpanRaw / 150, 4, 7),
     axisLength: Math.max(frameMaxX, frameMaxY, frameMaxZ) * 1.08,
     planePadding,
+    cameraDistance: Math.max(frameMaxX, frameMaxY, frameMaxZ) * 0.95 + planePadding * 2.2,
+    target: [centerX, centerY, centerZ],
+    heightBandPlanes,
+    fitPlaneZ: shiftZ,
+    zExaggeration,
     cameraDistance: frameRadius,
     target: [centerX, centerY, centerZ],
     viewTarget: [centerX + viewOffsetX, centerY, centerZ]
@@ -409,6 +460,71 @@ function createPointCloud(sceneData: SceneData) {
   return new THREE.Points(geometry, material)
 }
 
+function createHeightBandPlanes(planes: HeightBandPlaneDisplay[]) {
+  const group = new THREE.Group()
+
+  for (const plane of planes) {
+    const vertices = new Float32Array(plane.corners.flat())
+    const indices = [0, 1, 2, 0, 2, 3]
+
+    const geometry = new THREE.BufferGeometry()
+    geometry.setAttribute('position', new THREE.BufferAttribute(vertices, 3))
+    geometry.setIndex(indices)
+    geometry.computeVertexNormals()
+
+    const material = new THREE.MeshBasicMaterial({
+      color: new THREE.Color(plane.color),
+      transparent: true,
+      opacity: plane.opacity,
+      side: THREE.DoubleSide,
+      depthWrite: false,
+    })
+
+    group.add(new THREE.Mesh(geometry, material))
+  }
+
+  return group
+}
+
+function createFitPlane(sceneData: SceneData) {
+  const { bounds, fitPlaneZ } = sceneData
+  if (fitPlaneZ === undefined) {
+    return new THREE.Group()
+  }
+
+  const width = bounds.maxX - bounds.minX
+  const height = bounds.maxY - bounds.minY
+  const centerX = (bounds.minX + bounds.maxX) / 2
+  const centerY = (bounds.minY + bounds.maxY) / 2
+
+  const geometry = new THREE.PlaneGeometry(width, height)
+  const material = new THREE.MeshBasicMaterial({
+    color: new THREE.Color('#34d399'),
+    transparent: true,
+    opacity: 0.15,
+    side: THREE.DoubleSide,
+    depthWrite: false,
+  })
+
+  const mesh = new THREE.Mesh(geometry, material)
+  mesh.position.set(centerX, centerY, fitPlaneZ)
+
+  const group = new THREE.Group()
+  group.add(mesh)
+
+  const edgeGeometry = new THREE.EdgesGeometry(geometry)
+  const edgeMaterial = new THREE.LineBasicMaterial({
+    color: new THREE.Color('#34d399'),
+    transparent: true,
+    opacity: 0.4,
+  })
+  const edges = new THREE.LineSegments(edgeGeometry, edgeMaterial)
+  edges.position.copy(mesh.position)
+  group.add(edges)
+
+  return group
+}
+
 function disposeObject(object: THREE.Object3D) {
   object.traverse((child) => {
     const mesh = child as THREE.Mesh & {
@@ -481,7 +597,10 @@ function ensureRenderer() {
 
 function updateLegend(sceneData: SceneData, source: 'projected' | 'raw') {
   legendSource.value = source
-  legendText.value = `点数 ${sceneData.stats.count}，高度范围 ${sceneData.stats.minMm.toFixed(2)} mm 到 ${sceneData.stats.maxMm.toFixed(2)} mm，跨度 ${sceneData.stats.rangeMm.toFixed(2)} mm；平面尺寸约 ${sceneData.stats.xSpanMm.toFixed(1)} mm × ${sceneData.stats.ySpanMm.toFixed(1)} mm，Z 向范围约 ${sceneData.stats.zSpanMm.toFixed(2)} mm。`
+  const zNote = sceneData.zExaggeration > 1
+    ? `（Z 轴已放大 ${sceneData.zExaggeration.toFixed(0)} 倍以便观测）`
+    : ''
+  legendText.value = `点数 ${sceneData.stats.count}，高度范围 ${sceneData.stats.minMm.toFixed(2)} mm 到 ${sceneData.stats.maxMm.toFixed(2)} mm，跨度 ${sceneData.stats.rangeMm.toFixed(2)} mm；平面尺寸约 ${sceneData.stats.xSpanMm.toFixed(1)} mm × ${sceneData.stats.ySpanMm.toFixed(1)} mm，Z 向范围约 ${sceneData.stats.zSpanMm.toFixed(2)} mm。${zNote}`
 }
 
 function getFitDistance(sceneData: SceneData) {
@@ -577,6 +696,12 @@ function rebuildScene() {
 
   group.add(createReferencePlanes(nextSceneData))
   group.add(createPointCloud(nextSceneData))
+
+  group.add(createFitPlane(nextSceneData))
+
+  if (nextSceneData.heightBandPlanes && nextSceneData.heightBandPlanes.length > 0) {
+    group.add(createHeightBandPlanes(nextSceneData.heightBandPlanes))
+  }
 
   scene.add(group)
   sceneGroup = group

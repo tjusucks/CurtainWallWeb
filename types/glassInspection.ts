@@ -1,5 +1,28 @@
 export type DetectionStatus = 'success' | 'warning' | 'error'
 
+export interface FitHeightBandPlane {
+  name: string
+  z: number
+  corners: [number, number, number][]
+}
+
+export interface FitHeightBandRenderHint {
+  color: string
+  opacity: number
+}
+
+export interface FitHeightBand {
+  enabled: boolean
+  coordinate_system: string
+  unit: string
+  lower_z?: number
+  upper_z?: number
+  x_range?: [number, number]
+  y_range?: [number, number]
+  boundary_planes: FitHeightBandPlane[]
+  render_hint?: FitHeightBandRenderHint
+}
+
 export interface PointCloudData {
   points: number[][]
   dists: number[]
@@ -7,6 +30,7 @@ export interface PointCloudData {
   normal?: number[]
   projected_points?: number[][]
   projected_dists?: number[]
+  fit_height_band?: FitHeightBand
 }
 
 export interface DetectionDetail {
