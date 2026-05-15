@@ -63,7 +63,6 @@ export function usePendingQueue(storageKey = "detectionQueue") {
       const safeData = queue.value.map(item => ({
         id: item.id,
         customName: item.customName,
-        imagePreview: item.imagePreview,
         fileSize: item.fileSize,
         taskId: item.taskId,
         formData: item.formData,
