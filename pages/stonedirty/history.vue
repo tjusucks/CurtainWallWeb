@@ -2,7 +2,7 @@
 import type * as Detection from '~/types/detection'
 import type { DetectionStatus } from '~/types/detection'
 import dayjs from 'dayjs'
-import { getDetectionList, getDetectionSignedUrl, getDetectionTask, retryDetection } from '~/api/detections'
+import { getDetectionList, getDetectionSignedUrl, getDetectionTask, retryDetection, deleteDetection, batchDeleteDetections } from '~/api/detections'
 import { exportSingleDetectionPdf, exportSelectedDetectionPdf } from '~/utils/detectionPdfExport'
 
 // 别名映射确保一致性
@@ -246,6 +246,53 @@ async function handleExportSelectedReport() {
   }
 }
 
+async function handleDelete(id: string | number) {
+  try {
+    await ElMessageBox.confirm('确定要删除该检测记录吗？删除后不可恢复。', '确认删除', {
+      confirmButtonText: '确定',
+      cancelButtonText: '取消',
+      type: 'warning'
+    })
+    await deleteDetection(id)
+    ElMessage.success('删除成功')
+    clearHistoryCache()
+    await fetchList(false)
+  } catch (error: any) {
+    if (error?.toString()?.includes('cancel')) return
+    ElMessage.error('删除失败')
+    console.error(error)
+  }
+}
+
+async function handleBatchDelete() {
+  if (!selectedRows.value.length) {
+    ElMessage.warning('请先勾选要删除的历史记录')
+    return
+  }
+
+  try {
+    await ElMessageBox.confirm(
+      `确定要删除选中的 ${selectedRows.value.length} 条检测记录吗？删除后不可恢复。`,
+      '确认批量删除',
+      {
+        confirmButtonText: '确定',
+        cancelButtonText: '取消',
+        type: 'warning'
+      }
+    )
+    const ids = selectedRows.value.map(item => item.id)
+    await batchDeleteDetections(ids)
+    ElMessage.success(`已删除 ${ids.length} 条记录`)
+    selectedRows.value = []
+    clearHistoryCache()
+    await fetchList(false)
+  } catch (error: any) {
+    if (error?.toString()?.includes('cancel')) return
+    ElMessage.error('批量删除失败')
+    console.error(error)
+  }
+}
+
 // 定期刷新签名URL
 async function refreshTaskUrl() {
   if (!historyDetailTask.value?.id) return
@@ -287,7 +334,7 @@ watch(detailVisible, (isVisible) => {
 
       <el-form inline class="search-row">
         <el-form-item label="建筑">
-          <el-input v-model.trim="query.buildingName" placeholder="输入建筑名称" clearable />
+          <el-input v-model.trim="query.buildingName" placeholder="输入建筑名称" clearable style="width:140px"/>
         </el-form-item>
         <el-form-item label="状态">
           <el-select v-model="selectedStatus" placeholder="全部" clearable style="width:120px">
@@ -301,7 +348,8 @@ watch(detailVisible, (isVisible) => {
           <el-button type="primary" @click="handleSearch">查询</el-button>
           <el-button @click="handleReset">重置</el-button>
           <el-button :loading="loading" @click="handleManualRefresh">刷新</el-button>
-          <el-button type="success" plain :disabled="!selectedRows.length" @click="handleExportSelectedReport">导出所选PDF</el-button>
+          <el-button type="success" plain :disabled="!selectedRows.length" @click="handleExportSelectedReport">导出PDF</el-button>
+          <el-button type="danger" plain :disabled="!selectedRows.length" @click="handleBatchDelete">删除</el-button>
         </el-form-item>
       </el-form>
 
@@ -324,6 +372,7 @@ watch(detailVisible, (isVisible) => {
             <el-button link type="primary" @click="openDetail(scope.row.id)">详情</el-button>
             <el-button link type="success" @click="handleExportRowReport(scope.row.id)">导出PDF</el-button>
             <el-button v-if="scope.row.status === 'failed'" link type="warning" @click="handleRetry(scope.row.id)">重试</el-button>
+            <el-button link type="danger" @click="handleDelete(scope.row.id)">删除</el-button>
           </template>
         </el-table-column>
       </el-table>
