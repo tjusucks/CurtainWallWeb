@@ -121,13 +121,15 @@ const handleButtonClick = async () => {
   position: absolute;
   right: 2vw;
   top: 5vh;
-  width: 7vw;
-  height: 4vh;
+  min-width: 108px;
+  height: 40px;
+  white-space: nowrap;
 }
 
 .bottom_button{
-  width: 5vw;
-  height: 4vh;
+  min-width: 108px;
+  height: 40px;
+  white-space: nowrap;
 }
 
 .title{
@@ -165,6 +167,7 @@ const handleButtonClick = async () => {
   margin-left: 3%;
   height: 90%;
   width: 82%;
+  min-width: 0;
 }
 
 :deep(.is-vertical .el-step__head) {
@@ -199,5 +202,50 @@ const handleButtonClick = async () => {
 
 :deep(.el-step__title.is-finish) {
   color: black;
+}
+
+@media (max-width: 1366px) {
+  .title {
+    font-size: 40px;
+  }
+
+  .side {
+    width: 18%;
+  }
+
+  .content {
+    width: 78%;
+    margin-left: 2%;
+  }
+}
+
+@media (max-width: 1100px) {
+  .box {
+    flex-direction: column;
+    align-items: stretch;
+    height: calc(100% - 20px);
+    padding: 12px;
+    gap: 12px;
+  }
+
+  .side {
+    width: 100%;
+    height: auto;
+  }
+
+  .steps {
+    width: 100%;
+    height: auto;
+    margin-top: 0;
+    justify-content: flex-start;
+    overflow-x: auto;
+  }
+
+  .content {
+    width: 100%;
+    height: 100%;
+    margin-left: 0;
+    overflow: hidden;
+  }
 }
 </style>

@@ -27,18 +27,19 @@
     <div class="small-title">已上传图片</div>
     <div style="width: 65%;display: flex;justify-content: center;">
         <el-carousel trigger="click" :autoplay="false" arrow="always" height="90%" class="pics">
-            <el-carousel-item v-for="(item, index) in carouselImages" :key="index">
+            <el-carousel-item v-for="(item, index) in carouselImages" :key="index" class="image-slide">
               <div class="pic-name">
-                <span>{{ item.name }}</span>
+                <span class="filename-text" :title="item.name">{{ item.name }}</span>
                 <el-tag v-if="item.detected" type="success" effect="dark" round class="item">已检测</el-tag>
                 <el-tag v-else type="warning" effect="dark" round class="item">未检测</el-tag>
               </div>
               <el-image 
                 :src="item.src" 
                 fit="contain"
-                :preview-src-list="previewSrcList"
+                :preview-src-list="[item.src]"
                 :initial-index="index"
                 :preview-teleported="true"
+                lazy
                 class="carousel-image"
             />
             </el-carousel-item>
@@ -60,12 +61,25 @@ const store = useCrackDetectionStore()
     password: 'tongji-icw-7384'
   };
 
+const sanitizeOssFilename = (originalName) => {
+  const dotIndex = originalName.lastIndexOf('.');
+  const hasExt = dotIndex > 0 && dotIndex < originalName.length - 1;
+  const base = hasExt ? originalName.slice(0, dotIndex) : originalName;
+  const ext = hasExt ? originalName.slice(dotIndex) : '';
+
+  const safeBase = base
+    .replace(/[^A-Za-z0-9-]/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '');
+
+  const safeExt = ext.replace(/[^A-Za-z0-9.]/g, '');
+  const fallback = `image-${Date.now()}`;
+
+  return `${safeBase || fallback}${safeExt}`;
+};
+
 // 图片数据
 const carouselImages = ref([]);
-
-const previewSrcList = computed(() => {
-  return carouselImages.value.map(item => item.src);
-});
 
   const handleBeforeUpload = (file) => {
     const isImage = file.type.startsWith('image/');
@@ -126,14 +140,18 @@ const startDetection = async () => {
         formData.append('userName', credentials.userName);
         formData.append('password', credentials.password);
   
-        const targetPath = `crackdetect/${file.name}`;
+        const safeFilename = sanitizeOssFilename(file.name);
+        const targetPath = `crackdetect/${safeFilename}`;
+        const encodedTargetPath = targetPath
+          .split('/')
+          .map(segment => encodeURIComponent(segment))
+          .join('/');
         
         uploadProgress.value = 0;
         const response = await axios.post(
-          `http://8.159.143.133:9000/oss/upload/${targetPath}`,
+          `/oss/upload/${encodedTargetPath}`,
           formData,
           {
-            headers: { 'Content-Type': 'multipart/form-data' },
             onUploadProgress: (progressEvent) => {
               uploadProgress.value = Math.round(
                 (progressEvent.loaded * 100) / progressEvent.total
@@ -170,6 +188,8 @@ const startDetection = async () => {
       }
   
       ElMessage.success('所有图片上传完成!');
+      pendingFiles.value = [];
+      uploadedImages.value = [];
       
     } catch (error) {
       console.error('上传失败:', error);
@@ -185,7 +205,7 @@ const fetchPendingImages = async (projectId) => {
     
     // 如果返回的是数组，说明有待处理的图片
     if (Array.isArray(response.data.images)) {
-      carouselImages.value = response.data.images.map(img => {
+      const mappedImages = response.data.images.map(img => {
         const overview = img.segoverviews?.find(o => o.segimages.length > 0);
         return {
           detected: img.status == "processed" || overview?.segimages.length>0,
@@ -193,7 +213,11 @@ const fetchPendingImages = async (projectId) => {
           name: img.image_path.split('/').pop(), // 从路径中提取文件名
           image_id: img.image_id
         }
-      })
+      });
+      // 按 image_id 去重，避免重复渲染导致页面变慢
+      carouselImages.value = Array.from(
+        new Map(mappedImages.map(item => [item.image_id, item])).values()
+      );
     } 
     // 如果返回消息是没有待处理图片，则跳转到历史记录页面
     else if (response.data.message === "No pending images found") {
@@ -236,7 +260,9 @@ onMounted(() => {
 .upload-button{
   position: absolute;
   top: -1vh;
-  right:-5vw;
+  right: -5vw;
+  min-width: 96px;
+  white-space: nowrap;
 }
 
 .small-title{
@@ -245,6 +271,7 @@ onMounted(() => {
     color: black;
     width: 16%;
     margin-right: 2vw;
+    word-break: break-word;
 }
 
 .upload{
@@ -268,16 +295,30 @@ onMounted(() => {
     background-color: #D6D6D6;
     margin-top: 3vh;
     position: relative;
+    overflow: hidden;
+    min-width: 0;
 }
 
 .pic-name{
   color: black;
-  position: absolute;
-  top:2.5%;
+  position: static;
   width: 100%;
   display: flex;
   justify-content: center;
   align-items: center;
+  padding: 0 8px;
+  box-sizing: border-box;
+  gap: 8px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.filename-text {
+  display: block;
+  max-width: 72%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .item {
@@ -286,11 +327,22 @@ onMounted(() => {
 
 .carousel-image {
     display: block;
-    width: 60%;
-    height: 100%;
+    width: 100%;
+    height: calc(100% - 40px);
+    max-width: 100%;
     margin-left: auto;
     margin-right: auto;
-    margin-top: 5%;
+    margin-top: 0;
+    object-fit: contain;
+    overflow: hidden;
+}
+
+.image-slide {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .pics :deep(.el-carousel__indicator--outside button) {
@@ -310,5 +362,66 @@ onMounted(() => {
 
 .pics :deep(.el-carousel__arrow:hover) {
   background-color: rgba(0, 0, 0, 0.5);
+}
+
+.carousel-image :deep(.el-image__inner) {
+  object-fit: contain;
+}
+
+.carousel-image :deep(.el-image__wrapper) {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+@media (max-width: 1366px) {
+  .upload {
+    width: 72%;
+    margin-left: 0;
+  }
+
+  .small-title {
+    width: 22%;
+    font-size: 22px;
+  }
+
+  .upload-button {
+    right: -2vw;
+  }
+}
+
+@media (max-width: 1100px) {
+  :deep(.el-upload-list) {
+    position: static;
+    width: 100%;
+    margin-top: 8px;
+  }
+
+  .upload {
+    width: 100%;
+    margin: 0;
+  }
+
+  .small-title {
+    width: 24%;
+    font-size: 18px;
+    margin-right: 10px;
+  }
+
+  .upload-button {
+    top: -42px;
+    right: 0;
+  }
+
+  .carousel-image {
+    width: 82%;
+  }
+
+  .filename-text {
+    max-width: 62%;
+  }
 }
 </style>

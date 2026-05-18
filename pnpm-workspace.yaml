@@ -1,0 +1,8 @@
+allowBuilds:
+  '@parcel/watcher': true
+  core-js: true
+  esbuild: true
+  maplibre-gl: false
+  sharp: true
+  vue-composable: false
+  vue-demi: true

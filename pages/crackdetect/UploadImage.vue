@@ -99,6 +99,23 @@
     userName: 'crack-detection',
     password: 'tongji-icw-7384'
   };
+
+  const sanitizeOssFilename = (originalName) => {
+    const dotIndex = originalName.lastIndexOf('.')
+    const hasExt = dotIndex > 0 && dotIndex < originalName.length - 1
+    const base = hasExt ? originalName.slice(0, dotIndex) : originalName
+    const ext = hasExt ? originalName.slice(dotIndex) : ''
+
+    const safeBase = base
+      .replace(/[^A-Za-z0-9-]/g, '-')
+      .replace(/-+/g, '-')
+      .replace(/^-|-$/g, '')
+
+    const safeExt = ext.replace(/[^A-Za-z0-9.]/g, '')
+    const fallback = `image-${Date.now()}`
+
+    return `${safeBase || fallback}${safeExt}`
+  }
   
   const handleBeforeUpload = (file) => {
     const isImage = file.type.startsWith('image/');
@@ -147,14 +164,18 @@
         formData.append('userName', credentials.userName);
         formData.append('password', credentials.password);
   
-        const targetPath = `crackdetect/${file.name}`;
+        const safeFilename = sanitizeOssFilename(file.name);
+        const targetPath = `crackdetect/${safeFilename}`;
+        const encodedTargetPath = targetPath
+          .split('/')
+          .map(segment => encodeURIComponent(segment))
+          .join('/');
         
         uploadProgress.value = 0;
         const response = await axios.post(
-          `http://110.42.214.164:9000/oss/upload/${targetPath}`,
+          `/oss/upload/${encodedTargetPath}`,
           formData,
           {
-            headers: { 'Content-Type': 'multipart/form-data' },
             onUploadProgress: (progressEvent) => {
               uploadProgress.value = Math.round(
                 (progressEvent.loaded * 100) / progressEvent.total

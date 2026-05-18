@@ -2,43 +2,58 @@
 <div style="height: 30%;display: flex;">
     <div class="small-title" style="width: 10%;">图片列表</div>
     <div style="margin-left: 3%;width: 82%;display: flex;justify-content: center;">
-        <el-carousel trigger="click" :autoplay="false" arrow="always" height="90%" class="pics">
+        <el-carousel v-if="groupedImages.length" trigger="click" :autoplay="false" arrow="always" height="90%" class="pics">
             <el-carousel-item
              v-for="(group, groupIndex) in groupedImages" 
              :key="groupIndex"
             >
             <div class="image-group">
-                <div style="width: 100%;height: 100%;position: relative;" v-for="(item, itemIndex) in group">
+                <div class="group-card" v-for="(item, itemIndex) in group">
                   <div class="pic-name">
-                    <span style="margin-left: auto;">{{ item.name }}</span>
+                    <span class="filename-text" :title="item.name">{{ item.name }}</span>
                     <el-tag v-if="item.detected" type="success" effect="dark" round class="item">已检测</el-tag>
                     <el-tag v-else type="warning" effect="dark" round class="item">未检测</el-tag>
                   </div>
                   <el-image
                       :key="itemIndex"
-                      :src="item.src"
+                      :src="safeImageSrc(item.src)"
                       fit="scale-down"
+                      lazy
                       class="grouped-image"
+                      @error="markImageFailed(item.src)"
                       @click="pickImage(item)"
-                  />
+                  >
+                    <template #error>
+                      <div class="image-slot">图片加载失败</div>
+                    </template>
+                  </el-image>
                 </div>
             </div>
             </el-carousel-item>
         </el-carousel>
+        <el-empty v-else description="暂无图片" class="list-empty" />
     </div>
 </div>
 <div style="height: 67%;margin-top: 3%;">
-    <div style="height: 10%;display: flex;align-items: center;">
-        <span class="small-title">幕墙块检测分割</span>
-        <el-button type="primary" style="margin-left: 50px;" :disabled="picked.detected" :loading="globalLoading" @click="startSeg">开始分割</el-button>
+    <div style="height: 16%;display: flex;align-items: center;justify-content: center;flex-direction: column;gap: 10px;">
+        <div style="display: flex;align-items: center;justify-content: center;gap: 24px;">
+          <span class="small-title">幕墙块检测分割</span>
+          <el-button type="primary" :disabled="globalLoading" :loading="globalLoading" @click="startSeg">
+            {{ picked.detected ? '重新分割' : '开始分割' }}
+          </el-button>
+        </div>
+        <div v-if="globalLoading" class="progress-wrap">
+          <el-progress :percentage="segProgress" :stroke-width="12" :text-inside="true" status="active" />
+          <div class="progress-text">{{ progressText }}</div>
+        </div>
       </div>
     <div class="seg-container">
         <div>
             <div class="pic-title">原始布局</div>
             <div class="pic-container">
-              <el-image class="result-pic" :src="picked.origin" :preview-src-list="[picked.origin]">
+              <el-image class="result-pic" :src="safeImageSrc(picked.origin)" :preview-src-list="[picked.origin]" @error="markImageFailed(picked.origin)">
                 <template #error>
-                  <div class="image-slot">请选择图片</div>
+                  <div class="image-slot">{{ imageFallbackText(picked.origin, '请选择图片') }}</div>
                 </template>
               </el-image>
             </div>
@@ -46,9 +61,9 @@
         <div>
             <div class="pic-title">分割结果</div>
             <div class="pic-container">
-              <el-image class="result-pic" :src="picked.overview" :preview-src-list="[picked.overview]">
+              <el-image class="result-pic" :src="safeImageSrc(picked.overview)" :preview-src-list="[picked.overview]" @error="markImageFailed(picked.overview)">
                 <template #error>
-                  <div class="image-slot">请选择图片</div>
+                  <div class="image-slot">{{ imageFallbackText(picked.overview, '等待分割结果') }}</div>
                 </template>
               </el-image>
             </div>
@@ -56,19 +71,26 @@
         <div>
             <div class="pic-title">几何变换</div>
             <div class="pic-container">
-                <el-carousel trigger="click" indicator-position="none" :autoplay="false" arrow="always" height="90%" class="carouse">
-                    <el-carousel-item v-for="(src, index) in picked.segimages" :key="index">
-                    <div style="position: absolute;color: black;bottom: 0;left: 45%;z-index: 99;">区域{{ index+1 }}</div>
+                <el-carousel v-if="picked.segimages.length" trigger="click" indicator-position="none" :autoplay="false" arrow="always" height="90%" class="carouse">
+                    <el-carousel-item v-for="(seg, index) in picked.segimages" :key="seg.segId || seg.image_path || index" class="seg-slide">
+                    <div class="seg-index-label">区域{{ index+1 }}</div>
                     <el-image 
-                        :src="src" 
+                        :src="safeImageSrc(seg.image_path)" 
                         alt="暂无图片"
-                        :preview-src-list="picked.segimages"
+                        :preview-src-list="[seg.image_path]"
                         :preview-teleported="true"
+                        lazy
                         fit="contain"
                         class="carouse-pic"
-                    />
+                        @error="markImageFailed(seg.image_path)"
+                    >
+                      <template #error>
+                        <div class="image-slot">图片加载失败</div>
+                      </template>
+                    </el-image>
                     </el-carousel-item>
                 </el-carousel>
+                <el-empty v-else description="暂无几何变换结果" class="result-empty" />
             </div>
         </div>
     </div>
@@ -80,6 +102,7 @@ import { computed } from 'vue';
 import { ref, onMounted } from 'vue';
 import axios from 'axios'
 import { useCrackDetectionStore } from '../store/CrackDetection'
+import { ElMessageBox } from 'element-plus'
 const store = useCrackDetectionStore()
 
 const carouselImages = ref([]);
@@ -99,9 +122,43 @@ const picked = ref({
   detected:false,
   segimages:[]
 })
+const failedImageUrls = ref(new Set())
+
+const safeImageSrc = (url) => {
+  if (!url) return ''
+  return failedImageUrls.value.has(url) ? '' : url
+}
+
+const markImageFailed = (url) => {
+  if (!url) return
+  failedImageUrls.value.add(url)
+}
 
 // 添加全局加载状态
 const globalLoading = ref(false)
+const segProgress = ref(0)
+const progressText = ref('')
+let progressTimer = null
+
+const startProgressSimulation = () => {
+  segProgress.value = 8
+  progressText.value = '正在进行幕墙块检测与分割...'
+  if (progressTimer) clearInterval(progressTimer)
+  progressTimer = setInterval(() => {
+    if (segProgress.value < 92) {
+      segProgress.value += Math.max(1, Math.floor((100 - segProgress.value) / 12))
+    }
+  }, 800)
+}
+
+const stopProgressSimulation = (success = false) => {
+  if (progressTimer) {
+    clearInterval(progressTimer)
+    progressTimer = null
+  }
+  segProgress.value = success ? 100 : 0
+  progressText.value = success ? '分割完成' : ''
+}
 
 const pickImage = (image) => {
   if (!globalLoading.value) {
@@ -109,29 +166,68 @@ const pickImage = (image) => {
     picked.value.origin = image.src
     picked.value.overview = image.segments?.image_path || ""
     picked.value.detected = image.detected
-    picked.value.segimages = image.segments?.segimages?.map(seg => seg.image_path) || [];
+    picked.value.segimages = normalizeSegimages(image.segments?.segimages || [])
     store.pickedImage = image.segments;
     store.pickedImage.detected = image.detected;
     store.pickedImage.image_id = image.image_id;
-    store.pickedImage.segimages = updatedSegimages;
+    store.pickedImage.segimages = normalizeSegimages(image.segments?.segimages || [])
   }
 };
 
+const normalizeSegimages = (segimages = []) => {
+  return segimages
+    .filter(seg => seg && seg.image_path)
+    .map(seg => ({
+      segId: seg.segId || seg.seg_id || null,
+      image_path: seg.image_path,
+      crackimages: Array.isArray(seg.crackimages) ? seg.crackimages : [],
+      have_crack: seg.have_crack
+    }))
+}
+
+const imageFallbackText = (url, emptyText) => {
+  if (!url) return emptyText
+  return failedImageUrls.value.has(url) ? '图片加载失败' : emptyText
+}
+
 const startSeg = async () => {
   if (!picked.value || globalLoading.value) return
+
+  if (picked.value.detected) {
+    try {
+      await ElMessageBox.confirm(
+        '当前图片已有分割结果，是否重新分割并覆盖当前展示结果？',
+        '确认重跑',
+        { type: 'warning', confirmButtonText: '重跑', cancelButtonText: '取消' }
+      )
+    } catch {
+      return
+    }
+  }
   
   try {
     globalLoading.value = true // 设置全局加载状态
+    startProgressSimulation()
     const response = await axios.post('/crackdetection/crack-detection/preprocess_file', {
       image_path: picked.value.origin
     })
 
     if (response.data.success) {
-      const urls = response.data.data.result_urls
+      const urls = response.data.data?.result_urls || []
+      const noDetection = response.data.no_detection || urls.length === 0
+
+      if (noDetection) {
+        picked.value.detected = false
+        stopProgressSimulation(false)
+        ElMessage.warning(response.data.message || '未检测到可分割幕墙块，请更换图片后重试')
+        return
+      }
       
       // 更新检测结果
       picked.value.detected = true
-      picked.value.segimages = urls.filter(url => !url.includes('segment-whole'))
+      picked.value.segimages = urls
+        .filter(url => !url.includes('segment-whole'))
+        .map(url => ({ image_path: url, crackimages: [] }))
       picked.value.overview = urls.find(url => url.includes('segment-whole'))
       
       // 修复：完整设置store.pickedImage的数据结构
@@ -164,18 +260,18 @@ const startSeg = async () => {
           // 修复：创建一个数组来保存更新后的segimages
           const updatedSegimages = [];
           
-          for (const url of picked.value.segimages) {
+          for (const seg of picked.value.segimages) {
             // 先上传几何变换图片作为 segimage
             try {
               const segImageResponse = await axios.post('/crackdetection/addSegImage', {
                 segoverview_id: overviewResponse.data.segoverview_id,
-                image_path: url
+                image_path: seg.image_path
               })
           
               // 修复：当seg_id存在时才保存数据
               if (segImageResponse.data.seg_id) {
                 updatedSegimages.push({
-                  image_path: url,
+                  image_path: seg.image_path,
                   segId: segImageResponse.data.seg_id,  // 保存segId
                   crackimages: []
                 });
@@ -189,6 +285,8 @@ const startSeg = async () => {
           
           // 修复：更新store.pickedImage.segimages为包含segId的完整数据
           store.pickedImage.segimages = updatedSegimages;
+          picked.value.segimages = updatedSegimages;
+          stopProgressSimulation(true)
         } else {
           throw new Error('添加分割概览失败')
         }
@@ -200,6 +298,7 @@ const startSeg = async () => {
       throw new Error('预处理失败')
     }
   } catch (error) {
+    stopProgressSimulation(false)
     ElMessage.error('检测失败：' + error.message)
   } finally {
     globalLoading.value = false
@@ -222,12 +321,12 @@ const fetchPendingImages = async (projectId) => {
           image_id: img.image_id,
           segments:{
             image_path: overview?.image_path,
-            segimages: overview?.segimages.map(seg => ({
+            segimages: normalizeSegimages((overview?.segimages || []).map(seg => ({
               segId: seg.seg_id,
               image_path: seg.image_path,
-              crackimages: seg.crackimages.map(crack => crack.image_path),
+              crackimages: (seg.crackimages || []).map(crack => crack.image_path),
               have_crack: seg.have_crack
-            }))
+            })))
           } 
         };
       });
@@ -275,45 +374,79 @@ onMounted(() => {
     font-size: 28px;
     font-weight: bold;
     color: black;
+    text-align: center;
+    word-break: break-word;
 }
 
 .pics{
     width: 100%;
     height: 100%;
     background-color: #D6D6D6;
+    overflow: hidden;
+    min-width: 0;
 }
 
 .pic-name{
   color: black;
-  position: absolute;
+  position: static;
   max-width: 100%;
   width: 100%;
-  top:-2vh;
   display: flex;
   align-items: center;
-  z-index: 99;
-  overflow-x: auto;
+  justify-content: center;
+  overflow: hidden;
+  text-align: center;
+  padding: 0 8px;
+  box-sizing: border-box;
+  gap: 8px;
+  min-width: 0;
+}
+
+.group-card {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.filename-text {
+  display: block;
+  max-width: 72%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .item {
-  margin-left: 10%;
-  margin-right: auto;
+  margin-left: 10px;
 }
 
 .image-group {
   display: grid;
-  grid-template-columns: repeat(3, 1fr); /* 三列布局 */
+  grid-template-columns: repeat(3, minmax(0, 1fr)); /* 三列布局 */
   gap: 20px; /* 图片间距 */
   height: 100%;
   width: 90%;
   margin: auto;
   padding: 20px;
   box-sizing: border-box;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.image-group > div {
+  min-width: 0;
+  overflow: hidden;
 }
 
 .grouped-image {
   width: 100%;
-  height: 100%;
+  height: calc(100% - 40px);
+  max-width: 100%;
+  overflow: hidden;
+  cursor: pointer;
 }
 
 :deep(.el-carousel__indicator--outside button) {
@@ -343,7 +476,16 @@ onMounted(() => {
     border-radius: 5px;
     box-shadow: 0px 0px 10px rgb(81, 81, 81);
     display: grid;
-    grid-template-columns: repeat(3, 1fr); /* 三列布局 */
+    grid-template-columns: repeat(3, minmax(0, 1fr)); /* 三列布局，避免内容撑破 */
+    gap: 10px;
+    padding: 10px;
+    box-sizing: border-box;
+    overflow: hidden;
+}
+
+.seg-container > div {
+    min-width: 0;
+    overflow: hidden;
 }
 
 .pic-title{
@@ -354,33 +496,141 @@ onMounted(() => {
     color: black;
     height: 20%;
     font-size: 20px;
+    padding: 0 8px;
+    box-sizing: border-box;
+    word-break: break-word;
 }
 
 .pic-container{
     display: flex;
     justify-content: center;
+    align-items: center;
     width: 100%;
     height: 80%;
     position: relative;
+    min-height: 0;
+    overflow: hidden;
+    box-sizing: border-box;
 }
 
 .carouse{
-    width:  80%;
-    height: 85%;
-    background-color: #D6D6D6;
+  width: 100%;
+  max-width: 100%;
+  height: 100%;
+  background-color: #D6D6D6;
+  overflow: hidden;
+}
+
+.seg-slide {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
 }
 
 .carouse-pic{
-    display: block;
-    width:90%;
-    height: 90%;
-    margin-left: auto;
-    margin-right: auto;
-    margin-top: 5%;
+  display: block;
+  width: 100%;
+  height: calc(100% - 28px);
+  margin: auto;
+}
+
+.seg-index-label {
+  height: 28px;
+  line-height: 28px;
+  text-align: center;
+  color: black;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  padding: 0 8px;
+  box-sizing: border-box;
 }
 
 .result-pic{
-    width:80%;
-    height: 80%;
+    width: 100%;
+    height: 100%;
+    max-width: 100%;
+}
+
+.progress-wrap {
+    width: 36%;
+    min-width: 420px;
+}
+
+.progress-text {
+    margin-top: 6px;
+    color: #666;
+    font-size: 14px;
+    text-align: center;
+}
+
+.list-empty,
+.result-empty {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background-color: #D6D6D6;
+}
+
+.result-pic :deep(.el-image__wrapper),
+.carouse-pic :deep(.el-image__wrapper),
+.grouped-image :deep(.el-image__wrapper) {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.result-pic :deep(.el-image__inner),
+.carouse-pic :deep(.el-image__inner),
+.grouped-image :deep(.el-image__inner) {
+  object-fit: contain;
+}
+
+@media (max-width: 1366px) {
+  .progress-wrap {
+    width: 58%;
+    min-width: 320px;
+  }
+}
+
+@media (max-width: 1100px) {
+  .image-group {
+    grid-template-columns: 1fr;
+    gap: 12px;
+    width: 96%;
+    padding: 12px;
+  }
+
+  .seg-container {
+    grid-template-columns: 1fr;
+    height: auto;
+    max-height: none;
+    overflow-y: auto;
+  }
+
+  .pic-title {
+    height: 56px;
+    font-size: 18px;
+  }
+
+  .pic-container {
+    height: 320px;
+  }
+
+  .progress-wrap {
+    width: 90%;
+    min-width: 0;
+  }
+
+  .filename-text {
+    max-width: 62%;
+  }
 }
 </style>
