@@ -17,12 +17,16 @@ export default defineNuxtRouteMiddleware((to, from) => {
     if (process.client) {
       const token = localStorage.getItem('authToken');
       const userAuth = JSON.parse(localStorage.getItem('userAuth') || '{}');
+      const config = useRuntimeConfig();
+      const bypassPermissionCheck = config.public.bypassAuth === true
+        || localStorage.getItem('bypassAuth') === 'true';
   
       // 未登录时，只允许访问白名单页面
       if (!token && !whitelist.includes(to.path)) {
         return navigateTo('/login');
       }
-      // 管理员可以访问所有页面
+      // 管理员或临时跳过权限检查
+      if (bypassPermissionCheck) return;
       if (userAuth.is_superuser) return;
       // 通用权限检查逻辑
       for (const path in permissionMap) {

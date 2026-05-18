@@ -73,6 +73,13 @@ import {useRouter} from "vue-router";
 
 const router = useRouter();
 const userAuth = ref({});
+const config = useRuntimeConfig();
+
+const isBypassEnabled = () => {
+  if (config.public.bypassAuth === true) return true;
+  if (process.client && localStorage.getItem("bypassAuth") === "true") return true;
+  return false;
+};
 
 //definePageMeta({
 //  middleware: "auth",
@@ -159,6 +166,10 @@ const getUserAuth = async () => {
 };
 
 const checkPermissionAndRedirect = (module) => {
+  if (isBypassEnabled()) {
+    router.push({ path: module.target_address });
+    return;
+  }
   if (loadingAuth.value) {
     ElMessage.warning("权限信息加载中，请稍后...");
     return; // 权限没加载完，阻止操作

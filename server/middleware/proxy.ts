@@ -19,11 +19,12 @@ export default defineEventHandler(async (event) => {
       rewrite: (p: string) => p.replace(/^\/history/, '') // 去掉 /history 前缀
     },
     '/oss': {
-      target: 'http://8.159.143.133:9000',
-      rewrite: (p: string) => p.replace(/^\/oss/, '') // 去掉 /oss 前缀
+      target: 'http://8.159.143.133:9000/oss',
+      rewrite: (p: string) => p.replace(/^\/oss/, '') // 去掉前端 /oss 前缀，保留上游 /oss
     },
     '/crackdetection': {
-      target: 'http://110.42.214.164:8001',
+      // target: 'http://110.42.214.164:8001',
+      target: 'http://127.0.0.1:8080',
       rewrite: (p: string) => p.replace(/^\/crackdetection/, '') // 去掉 /crackdetection 前缀
     }
   }

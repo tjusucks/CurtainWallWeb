@@ -50,11 +50,18 @@
 import {useRoute, useRouter} from "vue-router";
 import {onMounted} from "vue";
 import axios from "axios";
+import { useCrackDetectionStore } from "~/pages/crackdetect/store/CrackDetection";
 
 const route = useRoute();
 const router = useRouter();
+const crackDetectionStore = useCrackDetectionStore();
 const appConfig = useAppConfig();
 const {isHelpSlideoverOpen} = useDashboard();
+
+const goCrackDetectCenter = () => {
+  crackDetectionStore.enterFromNavigation();
+  router.push("/crackdetect");
+}
 
 // definePageMeta({
 //   middleware: "slidebar-renew",
@@ -134,12 +141,14 @@ const links = reactive([
     label: "石材裂缝检测",
     icon: "i-simple-icons-affinitypublisher",
     to: "/crackdetect",
+    click: goCrackDetectCenter,
     defaultOpen: false,
     children: [
       {
         label: "检测中心",
         to : "/crackdetect",
         exact: true,
+        click: goCrackDetectCenter,
       },
       {
         label:"历史记录",
@@ -354,6 +363,12 @@ const getUserAuth = async () => {
 getUserAuth();
 
 onMounted(() => {
+  crackDetectionStore.ensureConsistency();
+
+  // 直接访问裂缝检测路由时，统一入口行为，避免跨模块返回导致状态不一致
+  if (route.path === "/crackdetect") {
+    crackDetectionStore.enterFromNavigation();
+  }
   getUserAuth();
 });
 
