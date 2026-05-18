@@ -5,11 +5,20 @@
  * 输出内容: JSON { success: boolean; data?: { page: number; total: number; list: Array<HistoryItem> } }
  * 备注: 支持分页和类型筛选（single/batch/all）
  */
-import { defineEventHandler, getQuery, createError } from 'h3'
+import { defineEventHandler, getQuery, createError, getCookie } from 'h3'
+
+const readToken = (event: any) => {
+  const auth = event.node.req.headers['authorization'] || ''
+  if (typeof auth === 'string' && auth.toLowerCase().startsWith('bearer ')) {
+    return auth.slice(7)
+  }
+  const cookieToken = getCookie(event, 'auth_token')
+  return cookieToken || ''
+}
 
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig()
-  const apiBase = config.public.apiBase || 'http://127.0.0.1:8000'
+  const apiBase = config.public.corrosionApiBase || 'http://8.153.161.229:18000'
   
   // 获取查询参数
   const query = getQuery(event)
@@ -22,6 +31,11 @@ export default defineEventHandler(async (event) => {
   const headers: Record<string, string> = {}
   if (authHeader) {
     headers['Authorization'] = authHeader
+  } else {
+    const token = readToken(event)
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`
+    }
   }
   
   // 构建查询字符串

@@ -1,12 +1,14 @@
 /**
  * 接口名称: 锈蚀检测（同步）
  * 路径: POST /api/corrosion/detect -> POST {apiBase}/detect
- * 输入: FormData { file, model, conf, iou, imgsz, max_det }
- * 输出: { success: boolean; image_base64: string; metrics: object; params: object }
+ * 输入: FormData { file }
+ * 输出: { success: boolean; image_base64: string; metrics: object }
  * 说明: 按用户鉴权，记录与账户关联；未配置 apiBase 时使用本地 mock。
  */
 import { defineEventHandler, readMultipartFormData, createError, getCookie } from 'h3'
 import { readUserFromEvent, createMockDetection } from './_store'
+
+const DEFAULT_MODEL = 'hybrid-default'
 
 const readToken = (event: any) => {
   // 优先从 Authorization header 读取
@@ -25,7 +27,7 @@ const readToken = (event: any) => {
 
 export default defineEventHandler(async (event) => {
   const config = useRuntimeConfig()
-  const apiBase = config.public.apiBase || ''
+  const apiBase = config.public.corrosionApiBase || 'http://8.153.161.229:18000'
 
   // 如果配置了后端地址，直接转发请求，不在前端验证
   if (apiBase) {
@@ -35,15 +37,21 @@ export default defineEventHandler(async (event) => {
     }
 
     const fd = new FormData()
+    let hasModel = false
     for (const part of form) {
       if (part.filename) {
         // 将文件名中的 / 替换为 \ (macOS 转 Windows 路径格式)
         const windowsFilename = part.filename.replace(/\//g, '\\')
         const blob = new Blob([new Uint8Array(part.data)], { type: part.type || 'application/octet-stream' })
         fd.append(part.name || 'file', blob, windowsFilename)
-      } else {
-        fd.append(part.name || '', part.data.toString())
+      } else if (part.name === 'model') {
+        hasModel = true
+        fd.append('model', part.data.toString())
       }
+    }
+
+    if (!hasModel) {
+      fd.append('model', DEFAULT_MODEL)
     }
 
     // 读取 token 并转发给后端
@@ -80,14 +88,11 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: '未收到上传数据' })
   }
 
-  const params: any = { model: '', conf: 0.25, iou: 0.45, imgsz: 640, max_det: 300 }
   let filePart: any = null
 
   for (const part of form) {
     if (part.filename) {
       filePart = part
-    } else {
-      params[part.name || 'model'] = part.data.toString()
     }
   }
 
@@ -95,12 +100,6 @@ export default defineEventHandler(async (event) => {
     throw createError({ statusCode: 400, statusMessage: '缺少文件' })
   }
 
-  const mock = createMockDetection(user.id, user.username, { data: filePart.data, filename: filePart.filename }, {
-    model: String(params.model || 'yolo11s.pt'),
-    conf: Number(params.conf ?? 0.25),
-    iou: Number(params.iou ?? 0.45),
-    imgsz: Number(params.imgsz ?? 640),
-    max_det: Number(params.max_det ?? 300)
-  })
+  const mock = createMockDetection(user.id, user.username, { data: filePart.data, filename: filePart.filename })
   return mock
 })

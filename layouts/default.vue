@@ -56,9 +56,32 @@ type DashboardLink = {
   children?: any[];
 };
 
-const { isHelpSlideoverOpen } = useDashboard();
+const route = useRoute();
+const router = useRouter();
+const appConfig = useAppConfig();
+const {isHelpSlideoverOpen} = useDashboard();
+const TEMP_TOKEN = "temp-corrosion-access-token";
 
-const links = reactive<DashboardLink[]>([
+// definePageMeta({
+//   middleware: "slidebar-renew",
+// });
+
+const userPermissions = ref({
+  is_superuser: false,
+  access_system_a: false,
+  access_system_b: false,
+  access_system_c: false,
+  access_system_d: false,
+  access_system_v: false,
+  access_system_f: false,
+  access_system_g: false,
+  access_system_h: false,
+  access_system_z: false,
+});
+
+
+
+const baseLinks = [
   {
     id: "home",
     label: "首页",
@@ -117,7 +140,7 @@ const links = reactive<DashboardLink[]>([
   },
   {
     id: "glassInspection",
-    label: "幕墙智能检测",
+    label: "玻璃智能检测",
     icon: "i-heroicons-viewfinder-circle",
     to: "/glass-inspection",
     defaultOpen: false,
@@ -127,13 +150,13 @@ const links = reactive<DashboardLink[]>([
     children: [
       {
         id: "glassCrack",
-        label: "玻璃裂痕检测",
+        label: "玻璃自爆检测",
         to: "/glass-inspection/crack",
         exact: true,
       },
       {
         id: "glassFlatness",
-        label: "幕墙平整度检测",
+        label: "玻璃平整度检测",
         to: "/glass-inspection/flatness",
       },
     ],
@@ -253,6 +276,14 @@ const links = reactive<DashboardLink[]>([
         label: "历史图片",
         to: "/stonedirty/otherpage",
       },
+      {
+        label: "检测工作台",
+        to: "/stonedirty/detection",
+      },
+      {
+        label: "检测历史",
+        to: "/stonedirty/history",
+      },
     ],
   },
   {
@@ -289,7 +320,7 @@ const links = reactive<DashboardLink[]>([
       text: "用户管理",
     },
   },
-]);
+];
 
 const userAuth = ref({
   is_superuser: false,
@@ -304,29 +335,38 @@ const userAuth = ref({
   access_system_z: false,
 });
 
-function removeLinkById(linkId: string) {
-  const index = links.findIndex((link) => link.id === linkId);
-  if (index !== -1) {
-    links.splice(index, 1);
-  }
-}
+const links = computed(() => {
+  const hiddenIds = new Set<string>();
 
-function removeChildLink(parentId: string, childId: string) {
-  const parentLink = links.find((link) => link.id === parentId);
-  if (!parentLink || !Array.isArray(parentLink.children)) {
-    return;
+  if (!userAuth.value.is_superuser) {
+    if (!userAuth.value.access_system_a) hiddenIds.add("3DBuildingModel")
+    if (!userAuth.value.access_system_b) hiddenIds.add("stoneDirty")
+    if (!userAuth.value.access_system_c) hiddenIds.add("stoneCrack")
+    if (!userAuth.value.access_system_d) hiddenIds.add("explosion")
+    if (!userAuth.value.access_system_v) hiddenIds.add("wind")
+    if (!userAuth.value.access_system_f) hiddenIds.add("segment")
+    if (!userAuth.value.access_system_g) hiddenIds.add("glassFlatness")
+    if (!userAuth.value.access_system_h) {
+      hiddenIds.add("resilienceAssessment")
+      hiddenIds.add("glassToughnessJudge")
+    }
+    if (!userAuth.value.access_system_z) hiddenIds.add("corrosion")
+    hiddenIds.add("userManage")
   }
 
-  parentLink.children = parentLink.children.filter((child: any) => child.id !== childId);
-  if (parentLink.children.length === 0) {
-    removeLinkById(parentId);
-  }
-}
+  return baseLinks.filter((link) => !hiddenIds.has(link.id))
+})
 
 const getUserAuth = async () => {
   try {
     const authToken = localStorage.getItem("authToken");
-    if (!authToken) {
+    if (!authToken || authToken === TEMP_TOKEN) {
+      localStorage.removeItem("authToken");
+      const storedAuth = JSON.parse(localStorage.getItem("userAuth") || "{}");
+      if (storedAuth?.temp_corrosion_bypass) {
+        delete storedAuth.temp_corrosion_bypass;
+        localStorage.setItem("userAuth", JSON.stringify(storedAuth));
+      }
       return;
     }
 
@@ -337,31 +377,6 @@ const getUserAuth = async () => {
     });
 
     userAuth.value = response.data.data;
-    if (userAuth.value.is_superuser) {
-      return;
-    }
-
-    if (!userAuth.value.access_system_a) {
-      removeLinkById("resilienceAssessment");
-    }
-    if (!userAuth.value.access_system_b) {
-      removeLinkById("stoneDirty");
-    }
-    if (!userAuth.value.access_system_c) {
-      removeChildLink("glassInspection", "glassCrack");
-    }
-    if (!userAuth.value.access_system_v) {
-      removeLinkById("wind");
-    }
-    if (!userAuth.value.access_system_g) {
-      removeChildLink("glassInspection", "glassFlatness");
-    }
-    if (!userAuth.value.access_system_z) {
-      removeLinkById("corrosion");
-    }
-    if (!userAuth.value.is_superuser) {
-      removeLinkById("userManage");
-    }
   } catch (error) {
     console.error("Failed to fetch permissions", error);
     ElMessage.error("获取用户权限失败");
@@ -384,7 +399,7 @@ const groups = computed(() => [
   {
     key: "links",
     label: "Go to",
-    commands: links.map((link) => ({
+    commands: links.value.map((link) => ({
       ...link,
       shortcuts: link.tooltip?.shortcuts,
     })),

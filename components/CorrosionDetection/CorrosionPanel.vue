@@ -1,171 +1,135 @@
 <!--
 组件名称：CorrosionPanel
-功能说明：锈蚀检测前端界面（上传、参数、结果），通过 Nuxt API 代理调用 Flask 后端。
+功能说明：锈蚀检测前端界面（上传、任务提交、结果展示），调用锈蚀检测后端。
 -->
 <template>
   <div class="stack">
-    <template v-if="viewMode === 'performance'">
-      <div class="page-card" style="background: var(--card);">
-        <h3 class="card-title">多模型性能对比</h3>
-        <p class="card-sub">依据离线评测结果显示，便于挑选最佳模型。</p>
-        <CorrosionDetectionModelCompare />
+    <div class="page-card" style="background: var(--card);">
+      <h3 class="card-title">上传</h3>
+      <p class="card-sub">选择图片后使用后端默认模型与默认参数检测。</p>
+      <div class="upload-panel">
+        <div class="upload-actions">
+          <label class="btn">
+            <input type="file" accept="image/*" multiple hidden @change="onFilesChange" />
+            选择图像
+          </label>
+          <div class="progress-text">{{ progressText }}</div>
+          <div class="action-row">
+            <button class="btn" :disabled="busy || !files.length" @click="startDetect">同步检测</button>
+            <button class="btn secondary" :disabled="busy || !files.length" @click="startQueue">
+              {{ files.length > 1 ? '批量入队' : '单图入队' }}
+            </button>
+            <button class="ghost-btn" @click="goHistory">历史记录</button>
+            <button class="ghost-btn" @click="goLogs">日志</button>
+            <span v-if="busy" class="muted">处理中...</span>
+          </div>
+        </div>
+        <div class="thumb-row" v-if="visibleGallery.length || inputPreviewSrc">
+          <div class="thumb current" :class="{ active: !visibleGallery.length }" v-if="inputPreviewSrc">
+            <CachedImage :src="inputPreviewSrc" alt="输入预览" />
+            <div class="thumb-label">当前输入</div>
+          </div>
+          <div v-for="item in visibleGallery" :key="item.id" class="thumb" @click="selectThumb(item)">
+            <CachedImage :src="item.output" :alt="item.filename" />
+            <div class="thumb-label">{{ item.filename }}</div>
+          </div>
+        </div>
       </div>
-    </template>
+    </div>
 
-    <template v-else>
-      <div class="top-row">
-        <div class="page-card" style="background: var(--card);">
-          <h3 class="card-title">上传</h3>
-          <p class="card-sub">选择图片并开始检测，支持多张顺序处理。</p>
-          <div class="upload-panel">
-            <div class="upload-actions">
-              <label class="btn">
-                <input type="file" accept="image/*" multiple hidden @change="onFilesChange" />
-                选择图像
-              </label>
-              <div class="progress-text">{{ progressText }}</div>
-              <div class="action-row">
-                <button class="btn" :disabled="busy || !files.length" @click="startDetect">逐张检测</button>
-                <button class="btn secondary" :disabled="busy || !files.length" @click="startQueue">合并检测</button>
-                <button class="ghost-btn" @click="goHistory">历史记录</button>
-                <button class="ghost-btn" @click="goLogs">日志</button>
-                <span v-if="busy" class="muted">处理中...</span>
-              </div>
-            </div>
-            <div class="thumb-row" v-if="visibleGallery.length || inputPreviewSrc">
-              <div class="thumb current" :class="{ active: !visibleGallery.length }" v-if="inputPreviewSrc">
-                <img :src="inputPreviewSrc" alt="输入预览" />
-                <div class="thumb-label">当前输入</div>
-              </div>
-              <div v-for="item in visibleGallery" :key="item.id" class="thumb" @click="selectThumb(item)">
-                <img :src="item.output" :alt="item.filename" />
-                <div class="thumb-label">{{ item.filename }}</div>
-              </div>
-            </div>
+    <div class="page-card" style="background: var(--card);">
+      <div class="results-header">
+        <div>
+          <h3 class="card-title">结果预览</h3>
+          <p class="card-sub">输入/输出对比与统计指标。</p>
+        </div>
+        <div class="link-row">
+          <button type="button" class="ghost-btn" @click="handleExport" :disabled="!canExport">导出报告</button>
+          <button type="button" class="ghost-btn" @click="goHistory">历史记录</button>
+          <button type="button" class="ghost-btn" @click="goLogs">日志</button>
+        </div>
+      </div>
+      <div class="preview-pair">
+        <div class="preview-box">
+          <div class="preview-title">输入图</div>
+          <div class="preview-content">
+            <CachedImage v-if="inputPreviewSrc" :src="inputPreviewSrc" alt="输入图" />
+            <div v-else class="placeholder-box">等待选择图片</div>
           </div>
         </div>
-        <div class="page-card" style="background: var(--card);">
-          <h3 class="card-title">参数</h3>
-          <p class="card-sub">选择模型与阈值。</p>
-          <div class="param-grid">
-            <div class="param-block full">
-              <div class="param-label">模型</div>
-              <select v-model="params.model" class="param-input">
-                <option v-for="m in models" :key="m.key" :value="m.key">{{ m.name }}</option>
-              </select>
-            </div>
-            <div class="param-block">
-              <div class="param-label">置信度 (conf)</div>
-              <input v-model.number="params.conf" type="number" min="0" max="1" step="0.01" class="param-input" />
-            </div>
-            <div class="param-block">
-              <div class="param-label">IOU 阈值 (iou)</div>
-              <input v-model.number="params.iou" type="number" min="0" max="1" step="0.01" class="param-input" />
-            </div>
-            <div class="param-block">
-              <div class="param-label">输入尺寸 (imgsz)</div>
-              <input v-model.number="params.imgsz" type="number" min="320" max="1536" step="32" class="param-input" />
-            </div>
-            <div class="param-block">
-              <div class="param-label">最大检测数 (max_det)</div>
-              <input v-model.number="params.max_det" type="number" min="1" max="1000" step="1" class="param-input" />
-            </div>
+        <div class="preview-box">
+          <div class="preview-title">输出（标注结果）</div>
+          <div class="preview-content">
+            <CachedImage v-if="previewSrc" :src="previewSrc" alt="检测结果" />
+            <div v-else class="placeholder-box">等待检测结果</div>
           </div>
         </div>
       </div>
+      <div class="metrics-grid">
+        <div class="placeholder-box">锈蚀数量: {{ metrics.corrosion_count ?? '-' }}</div>
+        <div class="placeholder-box">锈斑数量: {{ metrics.rust_spots_count ?? '-' }}</div>
+        <div class="placeholder-box">总数量: {{ metrics.total_count ?? metrics.count ?? '-' }}</div>
+        <div class="placeholder-box">锈蚀面积占比: {{ formatRatio(metrics.corrosion_area_ratio) }}</div>
+        <div class="placeholder-box">锈斑面积占比: {{ formatRatio(metrics.rust_spots_area_ratio) }}</div>
+        <div class="placeholder-box">整体面积占比: {{ formatRatio(metrics.total_area_ratio ?? metrics.area_ratio) }}</div>
+        <div class="placeholder-box">锈蚀平均置信度: {{ formatConf(metrics.corrosion_avg_conf) }}</div>
+        <div class="placeholder-box">锈斑平均置信度: {{ formatConf(metrics.rust_spots_avg_conf) }}</div>
+        <div class="placeholder-box">整体平均置信度: {{ formatConf(metrics.total_avg_conf ?? metrics.avg_conf) }}</div>
+      </div>
+      <div class="area-breakdown" v-if="hasAreaBreakdown">
+        <div class="area-breakdown-header">
+          <span class="area-breakdown-title">当前图片面积占比分布</span>
+          <span class="area-breakdown-total">总异常: {{ formatRatio(areaBreakdown.totalAbnormal) }}</span>
+        </div>
+        <div class="area-breakdown-bar" aria-label="面积占比分布">
+          <div
+            v-for="segment in areaBreakdown.segments"
+            :key="segment.key"
+            class="area-breakdown-segment"
+            :class="`segment-${segment.key}`"
+            :style="{ width: `${segment.ratio * 100}%` }"
+          />
+        </div>
+        <div class="area-breakdown-legend">
+          <div v-for="segment in areaBreakdown.segments" :key="segment.key" class="legend-item">
+            <span class="legend-dot" :class="`segment-${segment.key}`" />
+            <span class="legend-label">{{ segment.label }}</span>
+            <span class="legend-value">{{ formatRatio(segment.ratio) }}</span>
+          </div>
+        </div>
+      </div>
+    </div>
 
-      <div class="page-card" style="background: var(--card);">
-        <div class="results-header">
-          <div>
-            <h3 class="card-title">结果预览</h3>
-            <p class="card-sub">输入/输出对比与统计指标。</p>
-          </div>
-          <div class="link-row">
-            <button type="button" class="ghost-btn" @click="handleExport" :disabled="!visibleGallery.length">导出报告</button>
-            <button type="button" class="ghost-btn" @click="goHistory">历史记录</button>
-            <button type="button" class="ghost-btn" @click="goLogs">日志</button>
-          </div>
-        </div>
-        <div class="preview-pair">
-          <div class="preview-box">
-            <div class="preview-title">输入图</div>
-            <div class="preview-content">
-              <img v-if="inputPreviewSrc" :src="inputPreviewSrc" alt="输入图" />
-              <div v-else class="placeholder-box">等待选择图片</div>
-            </div>
-          </div>
-          <div class="preview-box">
-            <div class="preview-title">输出（标注结果）</div>
-            <div class="preview-content">
-              <img v-if="previewSrc" :src="previewSrc" alt="检测结果" />
-              <div v-else class="placeholder-box">等待检测结果</div>
-            </div>
-          </div>
-        </div>
-        <div class="metrics-row">
-          <div class="placeholder-box">检测数量: {{ metrics.count ?? '-' }}</div>
-          <div class="placeholder-box">面积比例: {{ formatRatio(metrics.area_ratio) }}</div>
-          <div class="placeholder-box">平均置信度: {{ formatConf(metrics.avg_conf) }}</div>
-        </div>
-        <div v-if="metrics.classification" class="metrics-row">
-          <div class="placeholder-box classification-result">
-            分类结果: {{ formatClassificationLabel(metrics.classification.label) }}
-          </div>
-          <div class="placeholder-box classification-conf">
-            分类置信度: {{ formatConf(metrics.classification.confidence) }}
-          </div>
-        </div>
-        <div class="metrics-row">
-          <div class="placeholder-box">模型: {{ lastParams.model }}</div>
-          <div class="placeholder-box">置信度/IOU: {{ lastParams.conf }} / {{ lastParams.iou }}</div>
-          <div class="placeholder-box">输入尺寸/最大检测数: {{ lastParams.imgsz }} / {{ lastParams.max_det }}</div>
-        </div>
-      </div>
-
-      <div
-        v-if="visibleGallery.length > 1"
-        class="page-card"
-        style="background: var(--card);"
-      >
-        <h3 class="card-title">数据分析</h3>
-        <p class="card-sub">基于当前检测结果的统计图表。</p>
-        <CorrosionDetectionCorrosionCharts
-          ref="chartsRef"
-          :items="visibleGallery"
-        />
-      </div>
-    </template>
+    <div
+      v-if="visibleGallery.length > 1"
+      class="page-card"
+      style="background: var(--card);"
+    >
+      <h3 class="card-title">数据分析</h3>
+      <p class="card-sub">基于当前检测结果的统计图表。</p>
+      <CorrosionDetectionCorrosionCharts
+        ref="chartsRef"
+        :items="visibleGallery"
+      />
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
-import { onMounted, ref, computed } from 'vue'
+import { ref, computed, watch } from 'vue'
 import { useCorrosion } from '~/composables/useCorrosion'
+import { primeImageList } from '~/composables/useImageCache'
 import { generatePDFReport } from '~/utils/pdfExport'
 
 const chartsRef = ref<any>(null)
-const props = defineProps<{ viewMode?: 'performance' | 'detect' }>()
-const emit = defineEmits<{ (e: 'update:viewMode', v: 'performance' | 'detect'): void }>()
-const internalView = ref<'performance' | 'detect'>(props.viewMode || 'performance')
-const viewMode = computed({
-  get: () => props.viewMode ?? internalView.value,
-  set: (v: 'performance' | 'detect') => {
-    internalView.value = v
-    emit('update:viewMode', v)
-  }
-})
 
 const {
-  models,
-  fetchModels,
   files,
   setFiles,
-  params,
   busy,
   metrics,
   previewSrc,
   inputPreviewSrc,
-  lastParams,
   progressText,
   gallery,
   startDetect,
@@ -177,13 +141,28 @@ const router = useRouter()
 const goHistory = () => router.push('/corrosion/history')
 const goLogs = () => router.push('/corrosion/logs')
 
+const canExport = computed(() => {
+  return visibleGallery.value.length > 0 || (!!inputPreviewSrc.value && !!previewSrc.value)
+})
+
 const handleExport = async () => {
-  if (!visibleGallery.value.length) return
+  if (!canExport.value) return
   let chartImages = undefined
   if (visibleGallery.value.length > 1 && chartsRef.value) {
     chartImages = chartsRef.value.getChartImages()
   }
-  await generatePDFReport(visibleGallery.value, chartImages)
+
+  const reportItems = visibleGallery.value.length
+    ? visibleGallery.value
+    : [{
+        id: 'current-preview',
+        input: inputPreviewSrc.value,
+        output: previewSrc.value,
+        metrics: metrics.value,
+        filename: files.value[0]?.name || 'current-result.png'
+      }]
+
+  await generatePDFReport(reportItems, chartImages)
 }
 
 const onFilesChange = (e: Event) => {
@@ -192,10 +171,6 @@ const onFilesChange = (e: Event) => {
     setFiles(Array.from(input.files))
   }
 }
-
-onMounted(() => {
-  fetchModels()
-})
 
 const latestBatchId = computed(() => {
   if (currentBatchId.value) return currentBatchId.value
@@ -211,26 +186,54 @@ const visibleGallery = computed(() => {
   return gallery.value.filter((g) => g.batchId === bid)
 })
 
+watch(
+  [visibleGallery, inputPreviewSrc, previewSrc],
+  ([list, inputSrc, outputSrc]) => {
+    const sources = [
+      inputSrc,
+      outputSrc,
+      ...list.flatMap((item) => [item.input, item.output])
+    ]
+    void primeImageList(sources)
+  },
+  { immediate: true }
+)
+
+const areaBreakdown = computed(() => {
+  const corrosion = clampRatio(metrics.value.corrosion_area_ratio)
+  const rustSpots = clampRatio(metrics.value.rust_spots_area_ratio)
+  const totalAbnormal = clampRatio(metrics.value.total_area_ratio ?? metrics.value.area_ratio)
+  const normal = clampRatio(1 - totalAbnormal)
+
+  return {
+    totalAbnormal,
+    segments: [
+      { key: 'corrosion', label: '锈蚀', ratio: corrosion },
+      { key: 'rust-spots', label: '锈斑', ratio: rustSpots },
+      { key: 'normal', label: '正常', ratio: normal }
+    ]
+  }
+})
+
+const hasAreaBreakdown = computed(() => {
+  return areaBreakdown.value.segments.some((segment) => segment.ratio > 0)
+})
+
 const selectThumb = (item: typeof gallery.value[number]) => {
   if (!item) return
   previewSrc.value = item.output
   inputPreviewSrc.value = item.input
   metrics.value = item.metrics
-  lastParams.value = item.params
   if (item.batchId) currentBatchId.value = item.batchId
+}
+
+const clampRatio = (value?: number) => {
+  if (typeof value !== 'number' || Number.isNaN(value)) return 0
+  return Math.min(1, Math.max(0, value))
 }
 
 const formatRatio = (v?: number) => (typeof v === 'number' ? `${(v * 100).toFixed(2)}%` : '-')
 const formatConf = (v?: number) => (typeof v === 'number' ? `${(v * 100).toFixed(1)}%` : '-')
-const formatClassificationLabel = (label: string) => {
-  const labelMap: Record<string, string> = {
-    'light': '轻度锈蚀',
-    'moderate': '中度锈蚀',
-    'severe': '重度锈蚀',
-    'none': '无锈蚀'
-  }
-  return labelMap[label] || label
-}
 </script>
 
 <style scoped>
@@ -275,6 +278,11 @@ const formatClassificationLabel = (label: string) => {
   background: transparent;
   color: var(--accent);
   font-size: 13px;
+  cursor: pointer;
+}
+.ghost-btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
 }
 .muted {
   color: var(--muted);
@@ -354,11 +362,87 @@ const formatClassificationLabel = (label: string) => {
   gap: 12px;
   flex-wrap: wrap;
 }
-.metrics-row {
+.metrics-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(160px, 1fr));
   gap: 10px;
   margin-top: 12px;
+}
+.area-breakdown {
+  margin-top: 14px;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.28);
+}
+.area-breakdown-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+.area-breakdown-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text);
+}
+.area-breakdown-total {
+  font-size: 12px;
+  color: var(--muted);
+}
+.area-breakdown-bar {
+  width: 100%;
+  height: 18px;
+  display: flex;
+  overflow: hidden;
+  border-radius: 999px;
+  background: #e8edf8;
+  border: 1px solid var(--border);
+}
+.area-breakdown-segment {
+  height: 100%;
+  min-width: 0;
+}
+.segment-corrosion {
+  background: linear-gradient(90deg, #b45309, #d97706);
+}
+.segment-rust-spots {
+  background: linear-gradient(90deg, #f59e0b, #fbbf24);
+}
+.segment-normal {
+  background: linear-gradient(90deg, #cbd5e1, #e2e8f0);
+}
+.area-breakdown-legend {
+  margin-top: 10px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+.legend-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.35);
+}
+.legend-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  flex-shrink: 0;
+}
+.legend-label {
+  font-size: 13px;
+  color: var(--text);
+}
+.legend-value {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--muted);
 }
 .classification-result {
   background: linear-gradient(135deg, rgba(25, 118, 210, 0.1), rgba(25, 118, 210, 0.05));
@@ -402,8 +486,11 @@ const formatClassificationLabel = (label: string) => {
   .preview-pair {
     grid-template-columns: 1fr;
   }
-  .metrics-row {
+  .metrics-grid {
     grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  }
+  .area-breakdown-legend {
+    grid-template-columns: 1fr;
   }
 }
 </style>

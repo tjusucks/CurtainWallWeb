@@ -7,7 +7,7 @@
       <div class="gi-page">
         <div class="gi-shell">
           <FeaturePageHero
-            icon="i-heroicons-cube-transparent"
+            icon="i-material-symbols-straighten-rounded"
             title="幕墙平整度检测"
             description="按左右环境图与投影图完成平整度分析，保留结果图与 3D 粒子点云效果用于复核。"
             tone="blue"
@@ -59,7 +59,7 @@
                       :disabled="!isComplete || isSubmitting"
                       @click="handleDetect"
                     >
-                      <UIcon :name="isSubmitting ? 'i-heroicons-arrow-path' : 'i-heroicons-cube-transparent'" :class="{ 'gi-spin': isSubmitting }" />
+                      <UIcon :name="isSubmitting ? 'i-heroicons-arrow-path' : 'i-material-symbols-straighten-rounded'" :class="{ 'gi-spin': isSubmitting }" />
                       <span>{{ isSubmitting ? 'AI 分析中...' : '开始检测' }}</span>
                     </button>
                   </div>
@@ -94,7 +94,6 @@ import InstructionChecklist from '~/components/glass-inspection/InstructionCheck
 import DetectionResultCard from '~/components/glass-inspection/DetectionResultCard.vue'
 import { FLATNESS_FIELD_NAMES, type DetectionResultData, type FlatnessFieldName } from '~/types/glassInspection'
 
-const { user, restoreSession } = useAuth()
 const maxCount = 4
 const slotTips = ['请上传左侧环境图', '请上传左侧投影图', '请上传右侧环境图', '请上传右侧投影图']
 const instructions = [
@@ -137,15 +136,9 @@ const handleDetect = async () => {
   isSubmitting.value = true
 
   try {
-    await restoreSession()
-    const userId = user.value?.id
+    let email = localStorage.getItem('email')
 
-    if (!userId) {
-      result.value = {
-        status: 'error',
-        title: '用户未登录',
-        description: '请先登录后再进行平整度检测。'
-      }
+    if (!email) {
       ElMessage.warning('请先登录后再进行检测')
       return
     }
@@ -158,7 +151,7 @@ const handleDetect = async () => {
       }
     })
 
-    result.value = await detectGlassFlatness(userId, payload)
+    result.value = await detectGlassFlatness(email, payload)
   } catch (error: any) {
     result.value = {
       status: 'error',

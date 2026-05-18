@@ -8,7 +8,8 @@ export default defineEventHandler(async (event) => {
   if (
     path.startsWith('/api/auth') ||
     path.startsWith('/api/corrosion') ||
-    path.startsWith('/api/proxy-image')
+    path.startsWith('/api/proxy-image') ||
+    path.startsWith('/api/detect')
   ) {
     return
   }
@@ -18,6 +19,10 @@ export default defineEventHandler(async (event) => {
     '/m-api': {
       target: String((runtimeConfig as { monitorServiceOrigin?: string }).monitorServiceOrigin || 'http://8.159.143.133:8080'),
       rewrite: (p: string) => p.replace(/^\/m-api/, '/api/v1') // 监控服务 API 统一转到 /api/v1
+    },
+    '/api/detect': {
+      target: 'http://8.153.161.229:8003',
+      rewrite: (p: string) => p // 玻璃破裂/平整度检测，保持路径不变
     },
     '/api': {
       target: 'http://8.159.143.133:8000',

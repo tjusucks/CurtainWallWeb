@@ -1,11 +1,27 @@
 export default defineNuxtRouteMiddleware((to, from) => {
     const whitelist = ['/login', '/auth/login', '/auth/register'];
+    const TEMP_TOKEN = 'temp-corrosion-access-token';
 
     const readCookie = (name) => {
       if (typeof document === 'undefined') return '';
       const match = document.cookie.split(';').map((item) => item.trim()).find((item) => item.startsWith(`${name}=`));
       if (!match) return '';
       return decodeURIComponent(match.slice(name.length + 1));
+    };
+
+    const clearTemporaryBypass = () => {
+      const currentToken = localStorage.getItem('authToken');
+      const currentAuth = JSON.parse(localStorage.getItem('userAuth') || '{}');
+
+      if (currentToken === TEMP_TOKEN) {
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('email');
+      }
+
+      if (currentAuth?.temp_corrosion_bypass) {
+        delete currentAuth.temp_corrosion_bypass;
+        localStorage.setItem('userAuth', JSON.stringify(currentAuth));
+      }
     };
 
     const permissionMap = {
@@ -18,11 +34,13 @@ export default defineNuxtRouteMiddleware((to, from) => {
         '/segment': 'access_system_f',
         '/smoothnessDetection': 'access_system_g',
         '/resilienceAssessment': 'access_system_h',
-        '/corrosiondetection': 'access_system_z',
+        '/corrosion': 'access_system_z',
         '/userManage': 'is_superuser', // 管理页面仅限管理员
       };
   
     if (process.client) {
+        clearTemporaryBypass();
+
         const token = localStorage.getItem('authToken') || readCookie('auth_token');
       const userAuth = JSON.parse(localStorage.getItem('userAuth') || '{}');
 
@@ -32,7 +50,7 @@ export default defineNuxtRouteMiddleware((to, from) => {
   
       // 未登录时，只允许访问白名单页面
       if (!token && !whitelist.includes(to.path)) {
-          return navigateTo(to.path.startsWith('/corrosion') || to.path.startsWith('/auth') ? '/auth/login' : '/login');
+          return navigateTo('/login');
       }
       // 管理员可以访问所有页面
       if (userAuth.is_superuser) return;

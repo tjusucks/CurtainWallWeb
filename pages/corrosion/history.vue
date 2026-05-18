@@ -62,7 +62,7 @@
                 进度: {{ item.processed_count }} / {{ item.total_count }}
               </span>
               <span v-else>
-                模型: {{ item.model }}
+                总数量: {{ item.result_preview?.total_count ?? item.result_preview?.count ?? '-' }}
               </span>
               <span class="item-date">{{ formatDate(item.created_at) }}</span>
             </div>
@@ -132,39 +132,21 @@
               <div v-if="task.status === 'done' && task.output_image" class="task-content-row">
                 <div class="task-images">
                   <div class="task-image-wrapper">
-                    <img :src="getImageUrl(task.input_image)" alt="输入图片" class="task-img" />
+                    <CachedImage :src="getImageUrl(task.input_image)" alt="输入图片" class="task-img" />
                     <span class="image-label">原图</span>
                   </div>
                   <span class="arrow">→</span>
                   <div class="task-image-wrapper">
-                    <img :src="getImageUrl(task.output_image)" alt="输出图片" class="task-img" />
+                    <CachedImage :src="getImageUrl(task.output_image)" alt="输出图片" class="task-img" />
                     <span class="image-label">检测结果</span>
                   </div>
                 </div>
                 <div v-if="task.metrics" class="task-params">
                   <h4 class="params-title">检测结果</h4>
                   <div class="params-list">
-                    <div class="param-item">
-                      <span class="param-label">检测数量</span>
-                      <span class="param-value">{{ task.metrics.count ?? 0 }}</span>
-                    </div>
-                    <div v-if="task.metrics.avg_conf" class="param-item">
-                      <span class="param-label">平均置信度</span>
-                      <span class="param-value">{{ (task.metrics.avg_conf * 100).toFixed(1) }}%</span>
-                    </div>
-                    <div v-if="task.metrics.area_ratio" class="param-item">
-                      <span class="param-label">面积比例</span>
-                      <span class="param-value">{{ (task.metrics.area_ratio * 100).toFixed(2) }}%</span>
-                    </div>
-                  </div>
-                  <div v-if="task.metrics.classification" class="params-list" style="margin-top: 12px; padding-top: 12px; border-top: 2px dashed var(--border, #e0e0e0);">
-                    <div class="param-item classification-item">
-                      <span class="param-label">分类结果</span>
-                      <span class="param-value classification-label">{{ formatClassificationLabel(task.metrics.classification.label) }}</span>
-                    </div>
-                    <div class="param-item">
-                      <span class="param-label">分类置信度</span>
-                      <span class="param-value">{{ (task.metrics.classification.confidence * 100).toFixed(1) }}%</span>
+                    <div v-for="row in getMetricRows(task.metrics)" :key="row.label" class="param-item">
+                      <span class="param-label">{{ row.label }}</span>
+                      <span class="param-value">{{ row.value }}</span>
                     </div>
                   </div>
                 </div>
@@ -186,7 +168,6 @@
         <div v-else-if="singleDetails" class="modal-body">
           <div class="single-info">
             <p><strong>任务ID:</strong> {{ singleDetails.job_id }}</p>
-            <p><strong>模型:</strong> {{ singleDetails.model || 'N/A' }}</p>
             <p><strong>状态:</strong> 
               <span class="item-status" :class="`status-${singleDetails.status}`">
                 {{ getStatusText(singleDetails.status) }}
@@ -200,39 +181,21 @@
             <div v-if="singleDetails.input_image || singleDetails.output_image" class="task-content-row">
               <div class="task-images" v-if="singleDetails.input_image || singleDetails.output_image">
                 <div v-if="singleDetails.input_image" class="task-image-wrapper">
-                  <img :src="getImageUrl(singleDetails.input_image)" alt="输入图片" class="task-img" @error="handleImageError" />
+                  <CachedImage :src="getImageUrl(singleDetails.input_image)" alt="输入图片" class="task-img" />
                   <span class="image-label">原图</span>
                 </div>
                 <span v-if="singleDetails.input_image && singleDetails.output_image" class="arrow">→</span>
                 <div v-if="singleDetails.output_image" class="task-image-wrapper">
-                  <img :src="getImageUrl(singleDetails.output_image)" alt="输出图片" class="task-img" @error="handleImageError" />
+                  <CachedImage :src="getImageUrl(singleDetails.output_image)" alt="输出图片" class="task-img" />
                   <span class="image-label">检测结果</span>
                 </div>
               </div>
               <div v-if="singleDetails.metrics" class="task-params">
                 <h4 class="params-title">检测结果</h4>
                 <div class="params-list">
-                  <div class="param-item">
-                    <span class="param-label">检测数量</span>
-                    <span class="param-value">{{ singleDetails.metrics.count ?? 0 }}</span>
-                  </div>
-                  <div v-if="singleDetails.metrics.avg_conf !== undefined && singleDetails.metrics.avg_conf !== null" class="param-item">
-                    <span class="param-label">平均置信度</span>
-                    <span class="param-value">{{ (singleDetails.metrics.avg_conf * 100).toFixed(1) }}%</span>
-                  </div>
-                  <div v-if="singleDetails.metrics.area_ratio !== undefined && singleDetails.metrics.area_ratio !== null" class="param-item">
-                    <span class="param-label">面积比例</span>
-                    <span class="param-value">{{ (singleDetails.metrics.area_ratio * 100).toFixed(2) }}%</span>
-                  </div>
-                </div>
-                <div v-if="singleDetails.metrics.classification" class="params-list" style="margin-top: 12px; padding-top: 12px; border-top: 2px dashed var(--border, #e0e0e0);">
-                  <div class="param-item classification-item">
-                    <span class="param-label">分类结果</span>
-                    <span class="param-value classification-label">{{ formatClassificationLabel(singleDetails.metrics.classification.label) }}</span>
-                  </div>
-                  <div class="param-item">
-                    <span class="param-label">分类置信度</span>
-                    <span class="param-value">{{ (singleDetails.metrics.classification.confidence * 100).toFixed(1) }}%</span>
+                  <div v-for="row in getMetricRows(singleDetails.metrics)" :key="row.label" class="param-item">
+                    <span class="param-label">{{ row.label }}</span>
+                    <span class="param-value">{{ row.value }}</span>
                   </div>
                 </div>
               </div>
@@ -242,27 +205,9 @@
             <div v-else-if="singleDetails.metrics" class="metrics-only">
               <h4 class="params-title">📊 检测结果</h4>
               <div class="params-list">
-                <div class="param-item">
-                  <span class="param-label">检测数量</span>
-                  <span class="param-value">{{ singleDetails.metrics.count ?? 0 }}</span>
-                </div>
-                <div v-if="singleDetails.metrics.avg_conf !== undefined && singleDetails.metrics.avg_conf !== null" class="param-item">
-                  <span class="param-label">平均置信度</span>
-                  <span class="param-value">{{ (singleDetails.metrics.avg_conf * 100).toFixed(1) }}%</span>
-                </div>
-                <div v-if="singleDetails.metrics.area_ratio !== undefined && singleDetails.metrics.area_ratio !== null" class="param-item">
-                  <span class="param-label">面积比例</span>
-                  <span class="param-value">{{ (singleDetails.metrics.area_ratio * 100).toFixed(2) }}%</span>
-                </div>
-              </div>
-              <div v-if="singleDetails.metrics.classification" class="params-list" style="margin-top: 12px; padding-top: 12px; border-top: 2px dashed var(--border, #e0e0e0);">
-                <div class="param-item classification-item">
-                  <span class="param-label">分类结果</span>
-                  <span class="param-value classification-label">{{ formatClassificationLabel(singleDetails.metrics.classification.label) }}</span>
-                </div>
-                <div class="param-item">
-                  <span class="param-label">分类置信度</span>
-                  <span class="param-value">{{ (singleDetails.metrics.classification.confidence * 100).toFixed(1) }}%</span>
+                <div v-for="row in getMetricRows(singleDetails.metrics)" :key="row.label" class="param-item">
+                  <span class="param-label">{{ row.label }}</span>
+                  <span class="param-value">{{ row.value }}</span>
                 </div>
               </div>
               <div v-if="singleDetails.error_msg" class="info-message" style="margin-top: 16px;">
@@ -296,8 +241,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
-import { useCorrosion } from '~/composables/useCorrosion'
+import { ref, onMounted } from 'vue'
+import { normalizeCorrosionMetrics, useCorrosion } from '~/composables/useCorrosion'
+import { primeImageList } from '~/composables/useImageCache'
+
+const CORROSION_API_PROXY_BASE = '/api/corrosion'
 
 const { 
   historyList, 
@@ -317,6 +265,36 @@ const showBatchDetails = ref(false)
 const showSingleDetails = ref(false)
 const singleDetails = ref<any>(null)
 const singleDetailsLoading = ref(false)
+
+const getCorrosionApiBase = () => {
+  return CORROSION_API_PROXY_BASE
+}
+
+const getCorrosionAssetBase = () => {
+  const config = useRuntimeConfig()
+  return (config.public.corrosionApiBase as string) || 'http://8.153.161.229:18000'
+}
+
+function getImageUrl(path: string) {
+  if (!path) return ''
+
+  if (
+    path.startsWith('blob:') ||
+    path.startsWith('data:') ||
+    path.startsWith('http://') ||
+    path.startsWith('https://')
+  ) {
+    return path
+  }
+
+  const baseUrl = getCorrosionAssetBase().replace(/\/$/, '')
+  let normalizedPath = path.replace(/\\/g, '/')
+  if (!normalizedPath.startsWith('/')) {
+    normalizedPath = '/' + normalizedPath
+  }
+
+  return `${baseUrl}${normalizedPath}`
+}
 
 onMounted(() => {
   currentType.value = historyType.value
@@ -340,6 +318,13 @@ const handleItemClick = async (item: any) => {
   
   if (item.type === 'batch') {
     await fetchBatchDetails(item.batch_no)
+    if (batchDetails.value?.tasks?.length) {
+      const sources = batchDetails.value.tasks.flatMap((task: any) => [
+        getImageUrl(task.input_image),
+        getImageUrl(task.output_image)
+      ])
+      void primeImageList(sources)
+    }
     showBatchDetails.value = true
   } else {
     // 单次检测 - 检查是否有完整的图片数据
@@ -355,14 +340,17 @@ const handleItemClick = async (item: any) => {
       // 直接使用历史记录中的数据
       singleDetails.value = {
         job_id: item.job_id,
-        model: item.model,
         status: item.status,
         created_at: item.created_at,
         input_image: item.input_image,
         output_image: item.output_image,
-        metrics: item.result_preview || item.metrics,
+        metrics: normalizeCorrosionMetrics(item.result_preview || item.metrics),
         error_msg: item.error_msg
       }
+      void primeImageList([
+        getImageUrl(singleDetails.value.input_image),
+        getImageUrl(singleDetails.value.output_image)
+      ])
       console.log('[单次检测] 使用缓存数据（包含图片）:', singleDetails.value)
       showSingleDetails.value = true
     } else {
@@ -378,7 +366,7 @@ const fetchSingleDetails = async (jobId: string) => {
   showSingleDetails.value = true
   try {
     console.log('[单次检测] 请求任务详情 API:', jobId)
-    const res = await $fetch<any>(`/api/corrosion/jobs/${jobId}`, {
+    const res = await $fetch<any>(`${getCorrosionApiBase()}/jobs/${jobId}`, {
       headers: getAuthHeaders(),
       credentials: 'include'
     })
@@ -407,21 +395,23 @@ const fetchSingleDetails = async (jobId: string) => {
       
       singleDetails.value = {
         job_id: res.job_id,
-        model: result.params?.model || (historyItem?.type === 'single' ? historyItem.model : undefined) || 'N/A',
         status: 'done',
         created_at: historyItem?.created_at || new Date().toISOString(),
         input_image: inputImageUrl,
         output_image: outputImageUrl,
-        metrics: result.metrics,
+        metrics: normalizeCorrosionMetrics(result.metrics),
         error_msg: undefined
       }
+      void primeImageList([
+        getImageUrl(singleDetails.value.input_image),
+        getImageUrl(singleDetails.value.output_image)
+      ])
       console.log('[单次检测] ✅ 成功获取任务结果')
     } else if (res?.status === 'error') {
       // 处理失败的任务
       const historyItem = historyList.value.find((x: any) => x.type === 'single' && x.job_id === jobId)
       singleDetails.value = {
         job_id: res.job_id,
-        model: (historyItem?.type === 'single' ? historyItem.model : undefined) || 'N/A',
         status: 'error',
         created_at: historyItem?.created_at || new Date().toISOString(),
         input_image: undefined,
@@ -435,7 +425,6 @@ const fetchSingleDetails = async (jobId: string) => {
       const historyItem = historyList.value.find((x: any) => x.type === 'single' && x.job_id === jobId)
       singleDetails.value = {
         job_id: res.job_id,
-        model: (historyItem?.type === 'single' ? historyItem.model : undefined) || 'N/A',
         status: res.status,
         created_at: historyItem?.created_at || new Date().toISOString(),
         input_image: undefined,
@@ -484,17 +473,16 @@ const useFallbackData = (jobId: string) => {
     }
   }
   
-  // 3. 如果还没找到，尝试通过模型和时间戳范围匹配最近的一条
+  // 3. 如果还没找到，尝试通过时间戳范围匹配最近的一条
   if (!galleryItem && historyItem && historyItem.type === 'single' && gallery.value.length > 0) {
     const historyTime = new Date(historyItem.created_at).getTime()
     const recentItems = gallery.value.filter((x: any) => {
       const itemTime = new Date(x.timestamp || 0).getTime()
-      return x.params?.model === historyItem.model && 
-             Math.abs(itemTime - historyTime) < 5 * 60 * 1000 // 5分钟内
+      return Math.abs(itemTime - historyTime) < 5 * 60 * 1000 // 5分钟内
     })
     if (recentItems.length > 0) {
       galleryItem = recentItems[0]
-      console.log('[单次检测] 通过模型和时间匹配到 gallery 数据')
+      console.log('[单次检测] 通过时间匹配到 gallery 数据')
     }
   }
   
@@ -504,7 +492,6 @@ const useFallbackData = (jobId: string) => {
     // Gallery 有完整数据（包含 blob URL 或 base64）
     singleDetails.value = {
       job_id: jobId,
-      model: galleryItem.params?.model || (historyItem?.type === 'single' ? historyItem.model : undefined) || 'N/A',
       status: 'done',
       created_at: historyItem?.created_at || new Date().toISOString(),
       input_image: galleryItem.input,  // 可能是 blob:// 或 data://
@@ -512,6 +499,10 @@ const useFallbackData = (jobId: string) => {
       metrics: galleryItem.metrics,
       error_msg: undefined
     }
+    void primeImageList([
+      getImageUrl(singleDetails.value.input_image),
+      getImageUrl(singleDetails.value.output_image)
+    ])
     console.log('[单次检测] ✅ 使用 gallery 数据，图片类型:', {
       inputType: galleryItem.input?.substring(0, 20),
       outputType: galleryItem.output?.substring(0, 20)
@@ -520,19 +511,17 @@ const useFallbackData = (jobId: string) => {
     // 使用历史记录数据（可能不完整）
     singleDetails.value = {
       job_id: historyItem.job_id,
-      model: historyItem.model,
       status: historyItem.status,
       created_at: historyItem.created_at,
       input_image: (historyItem as any).input_image,
       output_image: (historyItem as any).output_image,
-      metrics: historyItem.result_preview || (historyItem as any).metrics,
+      metrics: normalizeCorrosionMetrics(historyItem.result_preview || (historyItem as any).metrics),
       error_msg: historyItem.result_preview ? undefined : '⚠️ /jobs/{jobId} API 调用失败，仅显示检测指标。请检查后端服务是否正常运行。'
     }
     console.log('[单次检测] ⚠️ 使用历史记录数据（图片不可用）')
   } else {
     singleDetails.value = {
       job_id: jobId,
-      model: 'N/A',
       status: 'error',
       created_at: new Date().toISOString(),
       input_image: undefined,
@@ -546,6 +535,11 @@ const useFallbackData = (jobId: string) => {
 
 const getAuthHeaders = (): Record<string, string> => {
   if (process.client) {
+    const storedToken = localStorage.getItem('authToken')
+    if (storedToken) {
+      return { Authorization: `Bearer ${storedToken}` }
+    }
+
     const cookies = document.cookie.split(';').reduce((acc, cookie) => {
       const [key, value] = cookie.trim().split('=')
       acc[key] = value
@@ -579,11 +573,6 @@ const closeSingleDetails = () => {
   singleDetails.value = null
 }
 
-const handleImageError = (event: Event) => {
-  console.error('图片加载失败:', (event.target as HTMLImageElement).src)
-  ;(event.target as HTMLImageElement).style.border = '2px solid red'
-}
-
 const getStatusText = (status: string) => {
   const statusMap: Record<string, string> = {
     pending: '等待中',
@@ -611,14 +600,21 @@ const formatDate = (dateStr: string) => {
   }
 }
 
-const formatClassificationLabel = (label: string) => {
-  const labelMap: Record<string, string> = {
-    'light': '轻度锈蚀',
-    'moderate': '中度锈蚀',
-    'severe': '重度锈蚀',
-    'none': '无锈蚀'
-  }
-  return labelMap[label] || label
+const formatRatio = (v?: number) => (typeof v === 'number' ? `${(v * 100).toFixed(2)}%` : '-')
+const formatConf = (v?: number) => (typeof v === 'number' ? `${(v * 100).toFixed(1)}%` : '-')
+const getMetricRows = (rawMetrics: any) => {
+  const m = normalizeCorrosionMetrics(rawMetrics)
+  return [
+    { label: '锈蚀数量', value: String(m.corrosion_count ?? 0) },
+    { label: '锈斑数量', value: String(m.rust_spots_count ?? 0) },
+    { label: '总数量', value: String(m.total_count ?? m.count ?? 0) },
+    { label: '锈蚀面积占比', value: formatRatio(m.corrosion_area_ratio) },
+    { label: '锈斑面积占比', value: formatRatio(m.rust_spots_area_ratio) },
+    { label: '整体面积占比', value: formatRatio(m.total_area_ratio ?? m.area_ratio) },
+    { label: '锈蚀平均置信度', value: formatConf(m.corrosion_avg_conf) },
+    { label: '锈斑平均置信度', value: formatConf(m.rust_spots_avg_conf) },
+    { label: '整体平均置信度', value: formatConf(m.total_avg_conf ?? m.avg_conf) },
+  ]
 }
 
 const getFilename = (path: string) => {
@@ -626,30 +622,6 @@ const getFilename = (path: string) => {
   return path.split(/[/\\]/).pop() || path
 }
 
-const getImageUrl = (path: string) => {
-  if (!path) return ''
-  
-  // 如果已经是完整的 URL（blob:// 或 data:// 或 http:// 或 https://），直接返回
-  if (path.startsWith('blob:') || 
-      path.startsWith('data:') || 
-      path.startsWith('http://') || 
-      path.startsWith('https://')) {
-    return path
-  }
-  
-  // 否则拼接 API base URL
-  const config = useRuntimeConfig()
-  const apiBase = (config.public.apiBase as string) || 'http://127.0.0.1:8000'
-  const baseUrl = apiBase.replace(/\/$/, '')
-  
-  // 规范化路径
-  let normalizedPath = path.replace(/\\/g, '/')
-  if (!normalizedPath.startsWith('/')) {
-    normalizedPath = '/' + normalizedPath
-  }
-  
-  return `${baseUrl}${normalizedPath}`
-}
 </script>
 
 <style scoped>
@@ -865,6 +837,10 @@ const getImageUrl = (path: string) => {
   width: 100%;
   max-width: none;
   min-width: 0;
+  min-height: 0;
+  height: calc(100vh - 48px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
 }
 
 /* 模态框样式 */
