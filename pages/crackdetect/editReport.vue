@@ -303,33 +303,33 @@
                 >
                   <h5>区域 {{ segIdx + 1 }}</h5>
                   <div class="report-detection-images">
-                    <el-image :src="seg.image_path" fit="contain" />
-                    <el-image
-                      v-if="getDetectionResultGroups(seg.crackimages).standard.segformerUrl"
-                      :src="getDetectionResultGroups(seg.crackimages).standard.segformerUrl"
-                      fit="contain"
-                    />
-                    <el-image
-                      v-if="getDetectionResultGroups(seg.crackimages).standard.crackDetectionUrl"
-                      :src="getDetectionResultGroups(seg.crackimages).standard.crackDetectionUrl"
-                      fit="contain"
-                    />
-                    <el-image
-                      v-if="getDetectionResultGroups(seg.crackimages).som.overlayUrl"
-                      :src="getDetectionResultGroups(seg.crackimages).som.overlayUrl"
-                      fit="contain"
-                    />
+                    <div
+                      v-for="slot in getAvailableReportImageSlots(seg)"
+                      :key="slot.key"
+                      class="report-detection-slot"
+                    >
+                      <p class="report-slot-title">{{ slot.label }}</p>
+                      <div class="report-slot-image-box">
+                        <el-image
+                          :src="slot.url"
+                          fit="contain"
+                          class="report-slot-image"
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
           
-          <h2>总体结论</h2>
-          <p>{{ reportData.overallAssessment || '暂无总体评估' }}</p>
-          
-          <h2>建议措施</h2>
-          <p>{{ reportData.recommendations || '暂无建议措施' }}</p>
+          <div class="report-final-section">
+            <h2>总体结论</h2>
+            <p style="white-space: pre-wrap;">{{ reportData.overallAssessment || '暂无总体评估' }}</p>
+            
+            <h2>建议措施</h2>
+            <p style="white-space: pre-wrap;">{{ reportData.recommendations || '暂无建议措施' }}</p>
+          </div>
         </div>
       </div>
       
@@ -397,6 +397,32 @@ const currentImageData = computed({
     }
   }
 })
+
+const sanitizeImageDataForStorage = (list) => {
+  if (!Array.isArray(list)) return []
+  return list.map((item) => ({
+    description: item?.description || '',
+    crackStatus: item?.crackStatus || 'none',
+    details: item?.details || '',
+    suggestions: item?.suggestions || ''
+  }))
+}
+
+const mergeSavedImageData = (baseList, savedList) => {
+  if (!Array.isArray(baseList) || baseList.length === 0) return []
+  if (!Array.isArray(savedList) || savedList.length === 0) return baseList
+  return baseList.map((base, idx) => {
+    const saved = savedList[idx]
+    if (!saved) return base
+    return {
+      ...base,
+      description: saved.description ?? base.description,
+      crackStatus: saved.crackStatus ?? base.crackStatus,
+      details: saved.details ?? base.details,
+      suggestions: saved.suggestions ?? base.suggestions
+    }
+  })
+}
 
 const selectImage = (index) => {
   currentImageIndex.value = index
@@ -504,6 +530,20 @@ const getDetectionResultGroups = (crackimages) => {
   return groups
 }
 
+const getReportImageSlots = (seg) => {
+  const groups = getDetectionResultGroups(seg?.crackimages || [])
+  return [
+    { key: 'geom', label: '几何变换', url: seg?.image_path || '' },
+    { key: 'segformer', label: 'Segformer', url: groups.standard.segformerUrl || '' },
+    { key: 'crack', label: 'CrackDetection', url: groups.standard.crackDetectionUrl || '' },
+    { key: 'som', label: 'SOM Overlay', url: groups.som.overlayUrl || '' }
+  ]
+}
+
+const getAvailableReportImageSlots = (seg) => {
+  return getReportImageSlots(seg).filter((slot) => typeof slot.url === 'string' && slot.url.trim().length > 0)
+}
+
 // 兼容旧调用
 const getCrackImage = (crackimages, type) => {
   const groups = getDetectionResultGroups(crackimages)
@@ -545,6 +585,92 @@ const renderMarkdown = (content) => {
     console.error('Markdown rendering error:', error)
     return content
   }
+}
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
+
+const normalizeImageUrlForFetch = (url) => {
+  if (!url || typeof url !== 'string') return url
+  // 优先走本地代理，减少跨域与直连不稳定问题
+  const prefix = 'http://8.159.143.133:9000/oss'
+  if (url.startsWith(prefix)) {
+    return `/oss${url.slice(prefix.length)}`
+  }
+  return url
+}
+
+const fetchImageAsObjectUrl = async (url, timeoutMs = 30000) => {
+  const controller = new AbortController()
+  const timer = setTimeout(() => controller.abort(), timeoutMs)
+  try {
+    const response = await fetch(normalizeImageUrlForFetch(url), {
+      method: 'GET',
+      cache: 'no-store',
+      signal: controller.signal
+    })
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status}`)
+    }
+    const blob = await response.blob()
+    return URL.createObjectURL(blob)
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+const fetchImageAsObjectUrlWithRetry = async (url, attempts = 3) => {
+  let lastError = null
+  for (let i = 0; i < attempts; i++) {
+    try {
+      return await fetchImageAsObjectUrl(url, 30000 + i * 10000)
+    } catch (error) {
+      lastError = error
+      if (i < attempts - 1) {
+        await sleep(400 * (i + 1))
+      }
+    }
+  }
+  throw lastError || new Error('image fetch failed')
+}
+
+const prepareImagesForPdf = async (container) => {
+  const images = Array.from(container.querySelectorAll('img'))
+  const objectUrls = []
+  let failed = 0
+
+  // 限制并发，避免瞬时请求过高触发超时/中断
+  const concurrency = 4
+  let cursor = 0
+  const worker = async () => {
+    while (cursor < images.length) {
+      const index = cursor
+      cursor += 1
+      const img = images[index]
+      const raw = img.getAttribute('src') || ''
+      if (!raw || raw.startsWith('data:') || raw.startsWith('blob:')) continue
+      try {
+        const objectUrl = await fetchImageAsObjectUrlWithRetry(raw, 3)
+        img.src = objectUrl
+        objectUrls.push(objectUrl)
+        await new Promise((resolve) => {
+          img.onload = resolve
+          img.onerror = resolve
+        })
+      } catch (error) {
+        failed += 1
+        console.error('PDF image preload failed:', raw, error?.message || error)
+        await new Promise((resolve) => {
+          if (img.complete) return resolve()
+          img.onload = resolve
+          img.onerror = resolve
+        })
+      }
+    }
+  }
+
+  await Promise.all(Array.from({ length: concurrency }, () => worker()))
+
+  return { objectUrls, failed }
 }
 
 // 压缩图片
@@ -681,14 +807,13 @@ const analyzeCrackWithLLM = async (imageIndex) => {
 // 保存报告
 const saveReport = async () => {
   try {
-    // 这里可以实现保存到后端的逻辑
+    const persistedImageData = sanitizeImageDataForStorage(imageDataList.value)
     const reportPayload = {
       projectId: projectDetails.value.project_id,
       reportData: reportData.value,
-      imageDataList: imageDataList.value
+      imageDataList: persistedImageData
     }
     
-    // 暂时使用本地存储
     localStorage.setItem(`report_${projectDetails.value.project_id}`, JSON.stringify(reportPayload))
     
     ElMessage.success('报告保存成功')
@@ -705,11 +830,13 @@ const downloadReport = async () => {
     background: 'rgba(0, 0, 0, 0.7)'
   })
   
+  let hiddenDiv = null
+  const objectUrls = []
   try {
     console.log('开始生成PDF...')
     
     // 创建一个隐藏的div来渲染报告
-    const hiddenDiv = document.createElement('div')
+    hiddenDiv = document.createElement('div')
     hiddenDiv.style.position = 'absolute'
     hiddenDiv.style.left = '-9999px'
     hiddenDiv.style.top = '0'
@@ -755,16 +882,22 @@ const downloadReport = async () => {
                 <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e4e7ed;">
                   <h4 style="margin-bottom: 15px; color: #303133;">检测结果详情</h4>
                   <img src="${image.segoverviews[0].image_path}" style="max-width: 600px; width: 100%; height: auto; margin-bottom: 20px;" />
-                  <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px;">
+                  <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px;">
                     ${sortedSegImages(image.segoverviews[0].segimages).map((seg, segIdx) => {
-                      const groups = getDetectionResultGroups(seg.crackimages)
+                      const slots = getAvailableReportImageSlots(seg)
                       return `
-                      <div style="border: 1px solid #e4e7ed; padding: 10px; border-radius: 4px;">
-                        <h5 style="text-align: center; margin-bottom: 10px; color: #606266;">区域 ${segIdx + 1}</h5>
-                        <img src="${seg.image_path}" style="width: 100%; max-width: 150px; height: auto; margin-bottom: 5px;" />
-                        ${groups.standard.segformerUrl ? `<img src="${groups.standard.segformerUrl}" style="width: 100%; max-width: 150px; height: auto; margin-bottom: 5px;" />` : ''}
-                        ${groups.standard.crackDetectionUrl ? `<img src="${groups.standard.crackDetectionUrl}" style="width: 100%; max-width: 150px; height: auto; margin-bottom: 5px;" />` : ''}
-                        ${groups.som.overlayUrl ? `<img src="${groups.som.overlayUrl}" style="width: 100%; max-width: 150px; height: auto; margin-bottom: 5px;" />` : ''}
+                      <div style="border: 1px solid #e4e7ed; padding: 10px; border-radius: 6px; page-break-inside: avoid; background: #fff;">
+                        <h5 style="text-align: center; margin-bottom: 10px; color: #606266; min-height: 22px; line-height: 22px;">区域 ${segIdx + 1}</h5>
+                        <div style="display: grid; grid-template-columns: 1fr; gap: 8px;">
+                          ${slots.map((slot) => `
+                            <div style="border: 1px solid #eef0f3; border-radius: 4px; padding: 6px;">
+                              <p style="margin: 0 0 6px 0; font-size: 12px; color: #909399; text-align: center; min-height: 18px; line-height: 18px;">${slot.label}</p>
+                              <div style="height: 120px; border: 1px solid #f0f0f0; border-radius: 4px; display: flex; align-items: center; justify-content: center; overflow: hidden; background: #fafafa;">
+                                <img src="${slot.url}" style="width: 100%; height: 100%; object-fit: contain; object-position: center;" />
+                              </div>
+                            </div>
+                          `).join('')}
+                        </div>
                       </div>
                       `
                     }).join('')}
@@ -773,52 +906,22 @@ const downloadReport = async () => {
               ` : ''}
             </div>
           `).join('')}
-          <h2 style="margin-top: 30px; margin-bottom: 15px; color: #303133;">总体结论</h2>
-          <p style="margin: 10px 0; color: #606266;">${reportData.value.overallAssessment || '暂无总体评估'}</p>
-          <h2 style="margin-top: 30px; margin-bottom: 15px; color: #303133;">建议措施</h2>
-          <p style="margin: 10px 0; color: #606266;">${reportData.value.recommendations || '暂无建议措施'}</p>
+          <div class="report-final-section" style="margin-top: 30px;">
+            <h2 style="margin-top: 0; margin-bottom: 15px; color: #303133;">总体结论</h2>
+            <p style="margin: 10px 0; color: #606266; white-space: pre-wrap;">${reportData.value.overallAssessment || '暂无总体评估'}</p>
+            <h2 style="margin-top: 30px; margin-bottom: 15px; color: #303133;">建议措施</h2>
+            <p style="margin: 10px 0; color: #606266; white-space: pre-wrap;">${reportData.value.recommendations || '暂无建议措施'}</p>
+          </div>
         </div>
       </div>
     `
     
-    // 等待图片加载
-    loadingInstance.setText('正在加载图片...')
-    console.log('等待图片加载...')
-    const images = hiddenDiv.querySelectorAll('img')
-    await Promise.all(Array.from(images).map(img => {
-      return new Promise((resolve) => {
-        if (img.complete) {
-          resolve()
-        } else {
-          img.onload = resolve
-          img.onerror = resolve
-        }
-      })
-    }))
-    
-    // 获取报告预览元素
-    const reportPreview = hiddenDiv.querySelector('.report-preview')
-    
-    loadingInstance.setText('正在生成PDF页面...')
-    console.log('开始html2canvas转换...')
-    
-    // 使用html2canvas转换，确保捕获完整内容
-    const canvas = await html2canvas(reportPreview, {
-      scale: 1.5, // 降低scale以减小文件大小
-      useCORS: true,
-      allowTaint: true,
-      backgroundColor: '#ffffff',
-      logging: false,
-      windowHeight: reportPreview.scrollHeight,
-      height: reportPreview.scrollHeight
-    })
-    
-    // 移除隐藏的div
-    document.body.removeChild(hiddenDiv)
-    
-    loadingInstance.setText('正在生成PDF页面...')
-    console.log('生成PDF页面...')
-    
+    // 图片预加载为 blob URL，减少跨域/签名带来的导出丢图
+    loadingInstance.setText('正在预加载图片...')
+    const preloadResult = await prepareImagesForPdf(hiddenDiv)
+    objectUrls.push(...preloadResult.objectUrls)
+    await sleep(80)
+
     // 创建PDF
     const pdf = new jsPDF({
       orientation: 'portrait',
@@ -826,9 +929,52 @@ const downloadReport = async () => {
       format: 'a4',
       compress: true // 启用PDF压缩
     })
-    
-    // 使用新的分页函数
-    generatePDFFromCanvas(canvas, pdf)
+
+    // 分块渲染，避免超长 canvas 导致图片丢失
+    const reportPreview = hiddenDiv.querySelector('.report-preview')
+    const headerEl = reportPreview.querySelector('.report-header')
+    const imageSections = Array.from(reportPreview.querySelectorAll('.image-report-section'))
+    const finalSection = reportPreview.querySelector('.report-final-section')
+
+    const blocks = []
+    if (headerEl) {
+      // Keep title and first image section on the same PDF page.
+      const firstPageBlock = document.createElement('div')
+      firstPageBlock.style.backgroundColor = '#fff'
+      firstPageBlock.style.paddingBottom = '8px'
+      firstPageBlock.appendChild(headerEl.cloneNode(true))
+      if (imageSections.length > 0) {
+        firstPageBlock.appendChild(imageSections[0].cloneNode(true))
+      }
+      // html2canvas requires the target element to exist in document tree.
+      hiddenDiv.appendChild(firstPageBlock)
+      blocks.push(firstPageBlock)
+    } else if (imageSections.length > 0) {
+      blocks.push(imageSections[0])
+    }
+
+    blocks.push(...imageSections.slice(1))
+    if (finalSection) {
+      blocks.push(finalSection)
+    }
+
+    let firstBlock = true
+    for (let i = 0; i < blocks.length; i++) {
+      loadingInstance.setText(`正在生成PDF页面（${i + 1}/${blocks.length}）...`)
+      const block = blocks[i]
+      const canvas = await html2canvas(block, {
+        scale: 1.5,
+        useCORS: true,
+        allowTaint: true,
+        backgroundColor: '#ffffff',
+        logging: false
+      })
+      if (!firstBlock) {
+        pdf.addPage()
+      }
+      generatePDFFromCanvas(canvas, pdf)
+      firstBlock = false
+    }
     
     // 保存PDF
     loadingInstance.setText('正在保存PDF文件...')
@@ -838,101 +984,27 @@ const downloadReport = async () => {
     
     console.log('PDF生成完成！')
     loadingInstance.close()
-    ElMessage.success('PDF下载成功')
+    ElMessage.success(preloadResult.failed > 0 ? `PDF下载成功（${preloadResult.failed} 张图片预加载失败）` : 'PDF下载成功')
   } catch (error) {
     console.error('PDF生成失败:', error)
     loadingInstance.close()
     ElMessage.error('PDF生成失败：' + error.message)
+  } finally {
+    if (hiddenDiv && hiddenDiv.parentNode) {
+      hiddenDiv.parentNode.removeChild(hiddenDiv)
+    }
+    objectUrls.forEach((url) => URL.revokeObjectURL(url))
   }
 }
 
 // 导出PDF
 const exportPDF = async () => {
-  const loadingInstance = ElLoading.service({
-    lock: true,
-    text: '正在生成PDF，请稍候...',
-    background: 'rgba(0, 0, 0, 0.7)'
-  })
-  
-  try {
-    console.log('从预览对话框导出PDF...')
-    
-    // 获取报告预览的DOM元素
-    const reportElement = document.querySelector('.report-preview')
-    if (!reportElement) {
-      loadingInstance.close()
-      ElMessage.error('报告内容未找到')
-      return
-    }
-    
-    // 临时修改样式以适配PDF
-    const originalStyle = reportElement.style.cssText
-    reportElement.style.cssText = `
-      padding: 40px;
-      background-color: white;
-      width: 794px;
-      font-family: 'Microsoft YaHei', Arial, sans-serif;
-    `
-    
-    // 确保所有图片加载完成
-    const images = reportElement.querySelectorAll('img')
-    await Promise.all(Array.from(images).map(img => {
-      return new Promise((resolve) => {
-        if (img.complete) {
-          resolve()
-        } else {
-          img.onload = resolve
-          img.onerror = resolve
-        }
-      })
-    }))
-    
-    // 使用html2canvas将DOM转换为canvas，降低scale以减小文件大小
-    const canvas = await html2canvas(reportElement, {
-      scale: 1.5, // 降低scale从2到1.5
-      useCORS: true,
-      allowTaint: true,
-      backgroundColor: '#ffffff',
-      logging: false,
-      windowHeight: reportElement.scrollHeight,
-      height: reportElement.scrollHeight
-    })
-    
-    // 恢复原始样式
-    reportElement.style.cssText = originalStyle
-    
-    loadingInstance.setText('正在生成PDF页面...')
-    console.log('生成PDF页面...')
-    
-    // 创建PDF
-    const pdf = new jsPDF({
-      orientation: 'portrait',
-      unit: 'mm',
-      format: 'a4',
-      compress: true // 启用PDF压缩
-    })
-    
-    // 使用新的分页函数
-    generatePDFFromCanvas(canvas, pdf)
-    
-    // 保存PDF
-    loadingInstance.setText('正在保存PDF文件...')
-    console.log('保存PDF...')
-    const fileName = `${reportData.value.projectName || '裂缝检测'}_报告_${new Date().toISOString().split('T')[0]}.pdf`
-    pdf.save(fileName)
-    
-    console.log('PDF导出完成！')
-    loadingInstance.close()
-    ElMessage.success('PDF下载成功')
-  } catch (error) {
-    console.error('PDF生成失败:', error)
-    loadingInstance.close()
-    ElMessage.error('PDF生成失败：' + error.message)
-  }
+  // 与主下载按钮复用同一条更稳定的导出链路
+  await downloadReport()
 }
 
-onMounted(() => {
-  fetchProjectDetails()
+onMounted(async () => {
+  await fetchProjectDetails()
   
   // 尝试加载已保存的报告数据
   const savedReport = localStorage.getItem(`report_${route.query.id}`)
@@ -943,7 +1015,7 @@ onMounted(() => {
         Object.assign(reportData.value, parsed.reportData)
       }
       if (parsed.imageDataList) {
-        imageDataList.value = parsed.imageDataList
+        imageDataList.value = mergeSavedImageData(imageDataList.value, parsed.imageDataList)
       }
     } catch (error) {
       console.error('Failed to load saved report:', error)
@@ -1161,17 +1233,53 @@ onMounted(() => {
   text-align: center;
   margin-bottom: 10px;
   color: #606266;
+  min-height: 22px;
+  line-height: 22px;
 }
 
 .report-detection-images {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 5px;
+  gap: 8px;
 }
 
-.report-detection-images :deep(img) {
-  max-width: 100%;
-  height: auto;
+.report-detection-slot {
+  border: 1px solid #eef0f3;
+  border-radius: 4px;
+  padding: 6px;
+  background: #fff;
+}
+
+.report-slot-title {
+  margin: 0 0 6px 0;
+  font-size: 12px;
+  color: #909399;
+  text-align: center;
+  min-height: 18px;
+  line-height: 18px;
+}
+
+.report-slot-image-box {
+  height: 120px;
+  border: 1px solid #f0f0f0;
+  border-radius: 4px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: #fafafa;
+}
+
+.report-slot-image {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center;
+}
+
+.report-slot-placeholder {
+  font-size: 12px;
+  color: #b0b3b8;
 }
 
 .dialog-footer {
