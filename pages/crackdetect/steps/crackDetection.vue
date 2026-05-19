@@ -22,11 +22,33 @@
                 <el-option label="SOM 模式" value="som" />
               </el-select>
             </div>
-            <div v-if="detectionMode === 'som'" style="display:flex;justify-content:center;align-items:center;gap:10px;margin-top:8px;">
+            <div v-if="detectionMode === 'som'" style="position:relative;z-index:2;display:flex;justify-content:center;align-items:center;gap:10px;margin-top:8px;">
               <span style="font-size:12px;color:#606266;">像素阈值</span>
-              <el-input-number v-model="somThresholds.min_crack_pixels" :min="1" :step="1" size="small" />
+              <el-input-number
+                v-model="somThresholds.min_crack_pixels"
+                :min="1"
+                :step="1"
+                :step-strictly="false"
+                :controls="true"
+                controls-position="right"
+                :readonly="false"
+                size="small"
+                style="width: 140px;"
+              />
               <span style="font-size:12px;color:#606266;">面积占比阈值</span>
-              <el-input-number v-model="somThresholds.min_crack_area_ratio" :min="0" :max="1" :step="0.0001" :precision="4" size="small" />
+              <el-input-number
+                v-model="somThresholds.min_crack_area_ratio"
+                :min="0"
+                :max="1"
+                :step="0.0001"
+                :precision="4"
+                :step-strictly="false"
+                :controls="true"
+                controls-position="right"
+                :readonly="false"
+                size="small"
+                style="width: 160px;"
+              />
             </div>
             <el-progress :percentage="getDetectionProgress()" style="width:50%;margin-left: auto;margin-right: auto;margin-top: 10px;" />
             <el-button 
@@ -233,7 +255,7 @@ const progress = ref(0)
 const globalLoading = ref(false)
 const detectionMode = ref('standard')
 const somThresholds = ref({
-  min_crack_pixels: 25,
+  min_crack_pixels: 250,
   min_crack_area_ratio: 0.0002
 })
 const isAllDetectionComplete = computed(() => {
@@ -253,42 +275,134 @@ const crackResult2 = ref([])
 
 const getSecondModelTitle = () => detectionMode.value === 'som' ? 'SOM掩码' : 'Segformer模型'
 const getThirdModelTitle = () => detectionMode.value === 'som' ? 'SOM叠加图' : 'CrackDetection模型'
+
+const buildOrderedCrackImages = (crackimages) => {
+  if (!Array.isArray(crackimages)) return []
+  return crackimages
+    .map((item) => {
+      if (typeof item === 'string') return item
+      if (item && typeof item.image_path === 'string') return item.image_path
+      return ''
+    })
+    .filter((path) => typeof path === 'string' && path)
+}
+
+const getDetectionResultGroups = (crackimages) => {
+  const ordered = buildOrderedCrackImages(crackimages)
+  if (ordered.length === 0) {
+    return {
+      standard: { segformerUrl: '', crackDetectionUrl: '' },
+      som: { maskUrl: '', overlayUrl: '' },
+    }
+  }
+  const latestFirst = [...ordered].reverse()
+  const isSomPath = (path) => path.includes('/som/') || path.includes('som-')
+  const groups = {
+    standard: { segformerUrl: '', crackDetectionUrl: '' },
+    som: { maskUrl: '', overlayUrl: '' },
+  }
+
+  const somMask = latestFirst.find((p) => isSomPath(p) && (p.includes('som-segformer-') || p.includes('/som/mask/')))
+  const somOverlay = latestFirst.find((p) => isSomPath(p) && (p.includes('overlay') || p.includes('som-mask-') || p.includes('/som/overlay/')))
+  if (somMask) groups.som.maskUrl = somMask
+  if (somOverlay) groups.som.overlayUrl = somOverlay
+
+  const standardSegformer = latestFirst.find((p) => !isSomPath(p) && p.includes('segformer'))
+  const standardMask = latestFirst.find((p) => !isSomPath(p) && (p.includes('mask') || p.includes('highlighted') || p.includes('result')))
+  if (standardSegformer) groups.standard.segformerUrl = standardSegformer
+  if (standardMask) groups.standard.crackDetectionUrl = standardMask
+
+  return groups
+}
+
+const hydrateSegModeFields = (seg) => {
+  const groups = getDetectionResultGroups(seg.crackimages)
+  seg.standardSegformerUrl = groups.standard.segformerUrl
+  seg.standardCrackDetectionUrl = groups.standard.crackDetectionUrl
+  seg.somMaskUrl = groups.som.maskUrl
+  seg.somOverlayUrl = groups.som.overlayUrl
+
+  const fallbackHaveCrack = (seg.have_crack === '0' || seg.have_crack === '1') ? seg.have_crack : undefined
+  if (seg.standardHaveCrack === undefined && (seg.standardSegformerUrl || seg.standardCrackDetectionUrl)) {
+    seg.standardHaveCrack = fallbackHaveCrack
+  }
+  if (seg.somHaveCrack === undefined && (seg.somMaskUrl || seg.somOverlayUrl)) {
+    seg.somHaveCrack = fallbackHaveCrack
+  }
+}
+
+const getModeResultPair = (seg) => {
+  if (detectionMode.value === 'som') {
+    return { first: seg.somMaskUrl || '', second: seg.somOverlayUrl || '' }
+  }
+  return { first: seg.standardSegformerUrl || '', second: seg.standardCrackDetectionUrl || '' }
+}
+
 const getSecondModelImage = (item) => {
-  if (!item || !item.crackimages) return ''
-  return detectionMode.value === 'som' ? item.crackimages[2] : item.crackimages[0]
+  if (!item) return ''
+  return getModeResultPair(item).first
 }
 const getThirdModelImage = (item) => {
-  if (!item || !item.crackimages) return ''
-  return detectionMode.value === 'som' ? item.crackimages[3] : item.crackimages[1]
+  if (!item) return ''
+  return getModeResultPair(item).second
 }
 const formatRatio = (val) => {
   if (typeof val !== 'number') return '-'
   return val.toFixed(6)
 }
 
-const getModeSlotIndexes = () => {
-  return detectionMode.value === 'som'
-    ? { first: 2, second: 3 }
-    : { first: 0, second: 1 }
+const normalizeSomThresholds = () => {
+  const pixels = Number(somThresholds.value.min_crack_pixels)
+  const ratio = Number(somThresholds.value.min_crack_area_ratio)
+
+  somThresholds.value.min_crack_pixels = Number.isFinite(pixels) && pixels >= 1
+    ? Math.floor(pixels)
+    : 2500
+  somThresholds.value.min_crack_area_ratio = Number.isFinite(ratio)
+    ? Math.min(1, Math.max(0, ratio))
+    : 0.01
+}
+
+const resetCurrentModeDetectionState = () => {
+  crackResult.value = []
+  crackResult2.value = []
+  progress.value = 0
+
+  picked.value.segimages.forEach((seg) => {
+    if (detectionMode.value === 'som') {
+      seg.somMaskUrl = ''
+      seg.somOverlayUrl = ''
+      seg.somMetrics = null
+      seg.somHaveCrack = undefined
+    } else {
+      seg.standardSegformerUrl = ''
+      seg.standardCrackDetectionUrl = ''
+      seg.standardHaveCrack = undefined
+    }
+  })
 }
 
 const loadModeResultsFromSegImages = () => {
   crackResult.value = []
   crackResult2.value = []
-  const { first, second } = getModeSlotIndexes()
 
   picked.value.segimages.forEach((seg, index) => {
-    const crackimages = Array.isArray(seg.crackimages) ? seg.crackimages : []
-    if (crackimages[first]) {
+    const { first, second } = getModeResultPair(seg)
+    const fallbackHaveCrack = (seg.have_crack === '0' || seg.have_crack === '1') ? seg.have_crack : undefined
+    const modeHaveCrack = detectionMode.value === 'som'
+      ? (seg.somHaveCrack ?? fallbackHaveCrack)
+      : (seg.standardHaveCrack ?? fallbackHaveCrack)
+
+    if (first) {
       crackResult.value[index] = {
-        url: crackimages[first],
-        have_crack: detectionMode.value === 'som' ? seg.somHaveCrack : seg.standardHaveCrack,
+        url: first,
+        have_crack: modeHaveCrack,
         metrics: detectionMode.value === 'som' ? seg.somMetrics || null : null,
       }
     }
-    if (crackimages[second]) {
+    if (second) {
       crackResult2.value[index] = {
-        url: crackimages[second]
+        url: second
       }
     }
   })
@@ -319,6 +433,7 @@ const markImageFailed = (url) => {
 
 const startCrackDetection = async () => {
   try {
+    normalizeSomThresholds()
     if (isAllDetectionComplete.value) {
       try {
         await ElMessageBox.confirm(
@@ -329,12 +444,13 @@ const startCrackDetection = async () => {
       } catch {
         return
       }
+      resetCurrentModeDetectionState()
+    } else {
+      // 初始化结果数组和进度
+      crackResult.value = []
+      crackResult2.value = []
+      progress.value = 0
     }
-
-    // 初始化结果数组和进度
-    crackResult.value = []
-    crackResult2.value = []
-    progress.value = 0  // 修改：开始检测时重置进度为0
     let allDetectionSuccess = true
     globalLoading.value = true
 
@@ -447,13 +563,15 @@ const startCrackDetection = async () => {
         // 修改：每完成一个区域的检测，进度增加1
         progress.value = i + 1
         if (!Array.isArray(seg.crackimages)) seg.crackimages = []
-        const { first, second } = getModeSlotIndexes()
-        seg.crackimages[first] = modelResult.url
-        seg.crackimages[second] = modelResult2.url
+        seg.crackimages.push(modelResult.url, modelResult2.url)
         if (detectionMode.value === 'som' && modelResult.metrics) {
+          seg.somMaskUrl = modelResult.url
+          seg.somOverlayUrl = modelResult2.url
           seg.somMetrics = modelResult.metrics
           seg.somHaveCrack = modelResult.have_crack
         } else {
+          seg.standardSegformerUrl = modelResult.url
+          seg.standardCrackDetectionUrl = modelResult2.url
           seg.standardHaveCrack = modelResult.have_crack
         }
 
@@ -556,7 +674,8 @@ onMounted(() => {
 
     picked.value.segimages.forEach((seg) => {
       if (!Array.isArray(seg.crackimages)) seg.crackimages = []
-      if (seg.crackimages[0] && (seg.have_crack === "0" || seg.have_crack === "1")) {
+      hydrateSegModeFields(seg)
+      if (seg.standardSegformerUrl && (seg.have_crack === "0" || seg.have_crack === "1")) {
         seg.standardHaveCrack = seg.have_crack
       }
     })
@@ -619,9 +738,9 @@ const getDetectionProgress = () => {
 // 判断某个区域的检测是否完成（两个模型都有结果）
 const isDetectionComplete = (index) => {
   const seg = picked.value.segimages[index]
-  if (!seg || !Array.isArray(seg.crackimages)) return false
-  const { first, second } = getModeSlotIndexes()
-  return Boolean(seg.crackimages[first] && seg.crackimages[second])
+  if (!seg) return false
+  const { first, second } = getModeResultPair(seg)
+  return Boolean(first && second)
 }
 
 // 废案方法（已停用）：
