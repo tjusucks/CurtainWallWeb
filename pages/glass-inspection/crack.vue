@@ -14,8 +14,8 @@
           />
 
           <div class="gi-panel gi-workbench">
-            <div class="gi-workbench__grid">
-              <div>
+            <div class="gi-workbench__stack">
+              <div class="gi-upload-section">
                 <div class="gi-panel-title">
                   <h3>上传检测图像</h3>
                   <span>{{ filledCount }}/{{ maxCount }} 已就绪</span>
@@ -34,7 +34,7 @@
                 />
               </div>
 
-              <div>
+              <div class="gi-action-section">
                 <div class="gi-panel-title">
                   <h3>检测作业面板</h3>
                   <span>BURST SCAN</span>
@@ -53,42 +53,34 @@
                       请上传 {{ maxCount }} 张图片后再开始检测。
                     </p>
 
-                    <button
-                      type="button"
-                      class="gi-primary-button"
-                      :disabled="!isComplete || isSubmitting"
-                      @click="handleDetect"
-                    >
-                      <UIcon :name="isSubmitting ? 'i-heroicons-arrow-path' : 'i-material-symbols-sound-detection-glass-break-rounded'" :class="{ 'gi-spin': isSubmitting }" />
-                      <span>{{ isSubmitting ? 'AI 检测中...' : '开始检测' }}</span>
-                    </button>
+                    <div class="gi-action-buttons">
+                      <button
+                        type="button"
+                        class="gi-primary-button"
+                        :disabled="!isComplete || isSubmitting"
+                        @click="handleDetect"
+                      >
+                        <UIcon :name="isSubmitting ? 'i-heroicons-arrow-path' : 'i-material-symbols-sound-detection-glass-break-rounded'" :class="{ 'gi-spin': isSubmitting }" />
+                        <span>{{ isSubmitting ? 'AI 检测中...' : '开始检测' }}</span>
+                      </button>
+
+                      <button v-if="result" type="button" class="gi-secondary-button" @click="isResultDialogOpen = true">
+                        <UIcon name="i-heroicons-eye" />
+                        <span>查看检测结果</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
 
-          <div v-if="result" class="gi-result-entry">
-            <div class="gi-result-head">
-              <div>
-                <h2>检测结果已生成</h2>
-                <p>点击查看结果卡片，复核当前上传图像的自爆检测结论。</p>
-              </div>
-              <button type="button" class="gi-secondary-button" @click="isResultDialogOpen = true">
-                <UIcon name="i-heroicons-eye" />
-                <span>查看检测结果</span>
-              </button>
-            </div>
-          </div>
-
           <div v-if="result && isResultDialogOpen" class="gi-result-modal" @click.self="isResultDialogOpen = false">
             <div class="gi-result-modal__panel">
-              <div class="gi-result-modal__toolbar">
-                <button type="button" class="gi-modal-close" aria-label="关闭检测结果" @click="isResultDialogOpen = false">
-                  <UIcon name="i-heroicons-x-mark" />
-                </button>
-              </div>
-            <DetectionResultCard :result="result" />
+              <button type="button" class="gi-modal-close" aria-label="关闭检测结果" @click="isResultDialogOpen = false">
+                <UIcon name="i-heroicons-x-mark" />
+              </button>
+              <DetectionResultCard :result="result" />
             </div>
           </div>
         </div>
