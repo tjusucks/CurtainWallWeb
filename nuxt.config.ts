@@ -105,8 +105,7 @@ export default defineNuxtConfig({
 
     serverMonitorBase:
       process.env.NUXT_PUBLIC_SERVER_MONITOR_BASE || ''
-  }
-},
+  },
 
   image: {
     domains: ['8.159.143.133', '8.153.161.229', '110.42.214.164', '47.102.208.89']

@@ -310,11 +310,9 @@ function buildSceneData(resolved: ResolvedPointCloud): SceneData | null {
     pointSize: THREE.MathUtils.clamp(dominantSpanRaw / 150, 4, 7),
     axisLength: Math.max(frameMaxX, frameMaxY, frameMaxZ) * 1.08,
     planePadding,
-    cameraDistance: Math.max(frameMaxX, frameMaxY, frameMaxZ) * 0.95 + planePadding * 2.2,
-    target: [centerX, centerY, centerZ],
     heightBandPlanes,
     fitPlaneZ: shiftZ,
-    zExaggeration
+    zExaggeration,
     cameraDistance: frameRadius,
     target: [centerX, centerY, centerZ],
     viewTarget: [centerX + viewOffsetX, centerY, centerZ]

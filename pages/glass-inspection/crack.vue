@@ -26,6 +26,7 @@
                   :preview-urls="previewUrls"
                   :current-index="currentIndex"
                   :disabled="isSubmitting"
+                  :slot-tips="slotTips"
                   @go-prev="goPrev"
                   @go-next="goNext"
                   @select-file="handleSelectFile"
@@ -67,15 +68,28 @@
             </div>
           </div>
 
-          <div v-if="result" class="gi-shell" style="gap: 18px;">
+          <div v-if="result" class="gi-result-entry">
             <div class="gi-result-head">
               <div>
-                <h2>检测结果</h2>
-                <p>结果来自当前上传图像，你可以继续替换图片并重新发起检测。</p>
+                <h2>检测结果已生成</h2>
+                <p>点击查看结果卡片，复核当前上传图像的自爆检测结论。</p>
               </div>
+              <button type="button" class="gi-secondary-button" @click="isResultDialogOpen = true">
+                <UIcon name="i-heroicons-eye" />
+                <span>查看检测结果</span>
+              </button>
             </div>
+          </div>
 
+          <div v-if="result && isResultDialogOpen" class="gi-result-modal" @click.self="isResultDialogOpen = false">
+            <div class="gi-result-modal__panel">
+              <div class="gi-result-modal__toolbar">
+                <button type="button" class="gi-modal-close" aria-label="关闭检测结果" @click="isResultDialogOpen = false">
+                  <UIcon name="i-heroicons-x-mark" />
+                </button>
+              </div>
             <DetectionResultCard :result="result" />
+            </div>
           </div>
         </div>
       </div>
@@ -94,6 +108,7 @@ import DetectionResultCard from '~/components/glass-inspection/DetectionResultCa
 import type { DetectionResultData } from '~/types/glassInspection'
 
 const maxCount = 1
+const slotTips = ['检测图像']
 const instructions = [
   '支持常见图片格式（JPG、PNG、WEBP）。',
   '建议图片清晰度较高，分辨率不低于 1080p。',
@@ -103,6 +118,7 @@ const instructions = [
 
 const result = ref<DetectionResultData | null>(null)
 const isSubmitting = ref(false)
+const isResultDialogOpen = ref(false)
 
 const {
   files,
@@ -119,11 +135,13 @@ const {
 const handleSelectFile = ({ index, file }: { index: number; file: File }) => {
   setFileAt(index, file)
   result.value = null
+  isResultDialogOpen.value = false
 }
 
 const handleRemoveFile = (index: number) => {
   removeAt(index)
   result.value = null
+  isResultDialogOpen.value = false
 }
 
 const handleDetect = async () => {
@@ -131,6 +149,7 @@ const handleDetect = async () => {
     return
   }
 
+  isResultDialogOpen.value = false
   isSubmitting.value = true
 
   try {
@@ -143,6 +162,7 @@ const handleDetect = async () => {
 
     const uploadFiles = files.value.filter(Boolean) as File[]
     result.value = await detectGlassCrack(email, uploadFiles)
+    isResultDialogOpen.value = false
   } catch (error: any) {
     result.value = {
       status: 'error',
@@ -150,6 +170,7 @@ const handleDetect = async () => {
       description: error?.message || '图片上传或检测过程出现错误，请稍后再试。',
       details: []
     }
+    isResultDialogOpen.value = false
   } finally {
     isSubmitting.value = false
   }

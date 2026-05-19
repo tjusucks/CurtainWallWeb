@@ -1,15 +1,15 @@
 <template>
   <UDashboardPage class="min-h-0">
     <UDashboardPanel grow class="min-h-0">
-      <UDashboardNavbar title="幕墙平整度检测" />
+      <UDashboardNavbar title="玻璃平整度检测" />
 
       <UDashboardPanelContent class="gi-panel-content">
       <div class="gi-page">
         <div class="gi-shell">
           <FeaturePageHero
             icon="i-material-symbols-straighten-rounded"
-            title="幕墙平整度检测"
-            description="按左右环境图与投影图完成平整度分析，保留结果图与 3D 粒子点云效果用于复核。"
+            title="玻璃平整度检测"
+            description="按步骤完成玻璃平整度分析，保留结果图与 3D 粒子点云效果用于复核。"
             tone="blue"
           />
 
@@ -17,7 +17,7 @@
             <div class="gi-workbench__grid">
               <div>
                 <div class="gi-panel-title">
-                  <h3>上传四组图像</h3>
+                  <h3>上传四组玻璃图像</h3>
                   <span>{{ filledCount }}/{{ maxCount }} 已就绪</span>
                 </div>
 
@@ -44,7 +44,7 @@
                   <div class="space-y-6">
                     <div>
                       <p class="gi-panel-title" style="margin-bottom: 14px;">
-                        <span style="font-size: 15px; color: var(--gi-text); letter-spacing: 0;">现场拍摄要求</span>
+                        <span style="font-size: 15px; color: var(--gi-text); letter-spacing: 0;">玻璃拍摄要求</span>
                       </p>
                       <InstructionChecklist :items="instructions" tone="blue" />
                     </div>
@@ -68,15 +68,28 @@
             </div>
           </div>
 
-          <div v-if="result" class="gi-shell" style="gap: 18px;">
+          <div v-if="result" class="gi-result-entry">
             <div class="gi-result-head">
               <div>
-                <h2>检测结果</h2>
-                <p>平整度结果保留结果图与点云交互复核能力，便于你和后续业务模块继续复用。</p>
+                <h2>检测结果已生成</h2>
+                <p>点击查看结果卡片，复核玻璃平整度结果图与点云交互视图。</p>
               </div>
+              <button type="button" class="gi-secondary-button" @click="isResultDialogOpen = true">
+                <UIcon name="i-heroicons-eye" />
+                <span>查看检测结果</span>
+              </button>
             </div>
+          </div>
 
+          <div v-if="result && isResultDialogOpen" class="gi-result-modal" @click.self="isResultDialogOpen = false">
+            <div class="gi-result-modal__panel">
+              <div class="gi-result-modal__toolbar">
+                <button type="button" class="gi-modal-close" aria-label="关闭检测结果" @click="isResultDialogOpen = false">
+                  <UIcon name="i-heroicons-x-mark" />
+                </button>
+              </div>
             <DetectionResultCard :result="result" />
+            </div>
           </div>
         </div>
       </div>
@@ -97,14 +110,15 @@ import { FLATNESS_FIELD_NAMES, type DetectionResultData, type FlatnessFieldName 
 const maxCount = 4
 const slotTips = ['请上传左侧环境图', '请上传左侧投影图', '请上传右侧环境图', '请上传右侧投影图']
 const instructions = [
-  '拍摄角度尽量垂直于幕墙表面，减少透视畸变。',
+  '拍摄角度尽量垂直于玻璃表面，减少透视畸变。',
   '建议保持 3 到 5 米的适当拍摄距离。',
-  '请确保整体幕墙结构尽量完整出现在画面中。',
+  '请确保整体玻璃区域尽量完整出现在画面中。',
   '光线应尽量均匀，避免局部强阴影和大面积反光。'
 ]
 
 const result = ref<DetectionResultData | null>(null)
 const isSubmitting = ref(false)
+const isResultDialogOpen = ref(false)
 
 const {
   files,
@@ -121,11 +135,13 @@ const {
 const handleSelectFile = ({ index, file }: { index: number; file: File }) => {
   setFileAt(index, file)
   result.value = null
+  isResultDialogOpen.value = false
 }
 
 const handleRemoveFile = (index: number) => {
   removeAt(index)
   result.value = null
+  isResultDialogOpen.value = false
 }
 
 const handleDetect = async () => {
@@ -133,6 +149,7 @@ const handleDetect = async () => {
     return
   }
 
+  isResultDialogOpen.value = false
   isSubmitting.value = true
 
   try {
@@ -152,6 +169,7 @@ const handleDetect = async () => {
     })
 
     result.value = await detectGlassFlatness(email, payload)
+    isResultDialogOpen.value = false
   } catch (error: any) {
     result.value = {
       status: 'error',
@@ -159,6 +177,7 @@ const handleDetect = async () => {
       description: error?.message || '图片上传或检测过程出现错误，请稍后再试。',
       details: []
     }
+    isResultDialogOpen.value = false
   } finally {
     isSubmitting.value = false
   }

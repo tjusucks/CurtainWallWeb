@@ -5,7 +5,6 @@
     </div>
 
     <div>
-      <div class="gi-eyebrow">{{ eyebrow }}</div>
       <h1>{{ title }}</h1>
       <p>{{ description }}</p>
     </div>
@@ -19,11 +18,9 @@ withDefaults(
     title: string
     description: string
     tone?: 'cyan' | 'blue'
-    eyebrow?: string
   }>(),
   {
-    tone: 'cyan',
-    eyebrow: 'INSPECTION TASK'
+    tone: 'cyan'
   }
 )
 </script>

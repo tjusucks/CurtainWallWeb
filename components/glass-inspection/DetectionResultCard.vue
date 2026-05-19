@@ -7,7 +7,7 @@
 
       <div>
         <div class="gi-status-row">
-          <h3>{{ result.title }}</h3>
+          <h3>检测结果:</h3>
           <span class="gi-status-badge">{{ statusConfig.label }}</span>
         </div>
         <p>{{ result.description }}</p>
