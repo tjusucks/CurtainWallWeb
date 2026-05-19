@@ -607,6 +607,8 @@ const isDetectionComplete = (index) => {
   return hasFirstModel && hasSecondModel
 }
 
+const DEFAULT_LLM_MODEL = 'hybrid-default'
+
 // AI分析相关方法
 const openAIAnalysis = async (segmentIndex) => {
   try {
@@ -624,8 +626,11 @@ const openAIAnalysis = async (segmentIndex) => {
     }
     
     // 调用LLM分析API
-    const response = await axios.post('http://110.42.214.164:8001/llm-analyze', {
-      url: crackImageUrl
+    const response = await axios.post('http://110.42.214.164:8001/llm-analyze', null, {
+      params: {
+        url: crackImageUrl,
+        model: DEFAULT_LLM_MODEL
+      }
     })
     
     if (response.data.success) {

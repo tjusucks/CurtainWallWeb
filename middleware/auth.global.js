@@ -1,11 +1,27 @@
 export default defineNuxtRouteMiddleware((to, from) => {
     const whitelist = ['/login', '/auth/login', '/auth/register'];
+    const TEMP_TOKEN = 'temp-corrosion-access-token';
 
     const readCookie = (name) => {
       if (typeof document === 'undefined') return '';
       const match = document.cookie.split(';').map((item) => item.trim()).find((item) => item.startsWith(`${name}=`));
       if (!match) return '';
       return decodeURIComponent(match.slice(name.length + 1));
+    };
+
+    const clearTemporaryBypass = () => {
+      const currentToken = localStorage.getItem('authToken');
+      const currentAuth = JSON.parse(localStorage.getItem('userAuth') || '{}');
+
+      if (currentToken === TEMP_TOKEN) {
+        localStorage.removeItem('authToken');
+        localStorage.removeItem('email');
+      }
+
+      if (currentAuth?.temp_corrosion_bypass) {
+        delete currentAuth.temp_corrosion_bypass;
+        localStorage.setItem('userAuth', JSON.stringify(currentAuth));
+      }
     };
 
     const permissionMap = {
@@ -23,6 +39,8 @@ export default defineNuxtRouteMiddleware((to, from) => {
       };
   
     if (process.client) {
+        clearTemporaryBypass();
+
         const token = localStorage.getItem('authToken') || readCookie('auth_token');
       const userAuth = JSON.parse(localStorage.getItem('userAuth') || '{}');
 

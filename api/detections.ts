@@ -29,6 +29,7 @@ export async function createDetectionTask(file: File, payload: any, onUploadProg
     headers: {
       ...getAuthHeaders()
     },
+    timeout: 300000,
     onUploadProgress: (e: ProgressEvent) => {
       if (!e.total || !onUploadProgress) return
       onUploadProgress(Math.round((e.loaded / e.total) * 100))
@@ -69,5 +70,20 @@ export async function getDetectionSignedUrl(taskId: string | number) {
 export async function retryDetection(taskId: string | number) {
   const url = `${BASE}/detections/${taskId}/retry`
   const resp = await axios.post(url, {}, { headers: getAuthHeaders() })
+  return unwrapApiResponse(resp)
+}
+
+export async function deleteDetection(taskId: string | number) {
+  const url = `${BASE}/detections/${taskId}`
+  const resp = await axios.delete(url, { headers: getAuthHeaders() })
+  return unwrapApiResponse(resp)
+}
+
+export async function batchDeleteDetections(taskIds: (string | number)[]) {
+  const url = `${BASE}/detections/batch/delete`
+  const resp = await axios.delete(url, {
+    headers: getAuthHeaders(),
+    params: { task_ids: taskIds.join(',') }
+  })
   return unwrapApiResponse(resp)
 }
