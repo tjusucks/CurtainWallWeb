@@ -121,18 +121,26 @@
                         class="small-image"
                       />
                     </div>
-                    <div class="detection-image-item">
+                    <div v-if="getDetectionResultGroups(seg.crackimages).standard.segformerUrl" class="detection-image-item">
                       <p>Segformer</p>
                       <el-image
-                        :src="getCrackImage(seg.crackimages, 'segformer')"
+                        :src="getDetectionResultGroups(seg.crackimages).standard.segformerUrl"
                         fit="contain"
                         class="small-image"
                       />
                     </div>
-                    <div class="detection-image-item">
+                    <div v-if="getDetectionResultGroups(seg.crackimages).standard.crackDetectionUrl" class="detection-image-item">
                       <p>CrackDetection</p>
                       <el-image
-                        :src="getCrackImage(seg.crackimages, 'mask')"
+                        :src="getDetectionResultGroups(seg.crackimages).standard.crackDetectionUrl"
+                        fit="contain"
+                        class="small-image"
+                      />
+                    </div>
+                    <div v-if="getDetectionResultGroups(seg.crackimages).som.overlayUrl" class="detection-image-item">
+                      <p>SOM Overlay</p>
+                      <el-image
+                        :src="getDetectionResultGroups(seg.crackimages).som.overlayUrl"
                         fit="contain"
                         class="small-image"
                       />
@@ -296,8 +304,21 @@
                   <h5>区域 {{ segIdx + 1 }}</h5>
                   <div class="report-detection-images">
                     <el-image :src="seg.image_path" fit="contain" />
-                    <el-image :src="getCrackImage(seg.crackimages, 'segformer')" fit="contain" />
-                    <el-image :src="getCrackImage(seg.crackimages, 'mask')" fit="contain" />
+                    <el-image
+                      v-if="getDetectionResultGroups(seg.crackimages).standard.segformerUrl"
+                      :src="getDetectionResultGroups(seg.crackimages).standard.segformerUrl"
+                      fit="contain"
+                    />
+                    <el-image
+                      v-if="getDetectionResultGroups(seg.crackimages).standard.crackDetectionUrl"
+                      :src="getDetectionResultGroups(seg.crackimages).standard.crackDetectionUrl"
+                      fit="contain"
+                    />
+                    <el-image
+                      v-if="getDetectionResultGroups(seg.crackimages).som.overlayUrl"
+                      :src="getDetectionResultGroups(seg.crackimages).som.overlayUrl"
+                      fit="contain"
+                    />
                   </div>
                 </div>
               </div>
@@ -437,10 +458,59 @@ const fetchProjectDetails = async () => {
   }
 }
 
-// 获取对应类型的裂缝检测图片
+const buildOrderedCrackImages = (crackimages) => {
+  if (!Array.isArray(crackimages) || crackimages.length === 0) return []
+  return [...crackimages]
+    .filter((img) => img && typeof img.image_path === 'string' && img.image_path)
+    .sort((a, b) => {
+      const ai = Number.isFinite(Number(a.crack_id)) ? Number(a.crack_id) : Number.MAX_SAFE_INTEGER
+      const bi = Number.isFinite(Number(b.crack_id)) ? Number(b.crack_id) : Number.MAX_SAFE_INTEGER
+      return ai - bi
+    })
+}
+
+const getDetectionResultGroups = (crackimages) => {
+  const ordered = buildOrderedCrackImages(crackimages)
+  if (ordered.length === 0) {
+    return {
+      standard: { segformerUrl: '', crackDetectionUrl: '' },
+      som: { overlayUrl: '' },
+    }
+  }
+
+  const latestFirst = [...ordered].reverse()
+  const isSomPath = (path) => path.includes('/som/') || path.includes('som-')
+  const groups = {
+    standard: { segformerUrl: '', crackDetectionUrl: '' },
+    som: { overlayUrl: '' },
+  }
+
+  const somOverlay = latestFirst.find((img) => {
+    const p = img.image_path
+    return isSomPath(p) && (p.includes('overlay') || p.includes('som-mask-') || p.includes('/som/overlay/'))
+  })
+  if (somOverlay) groups.som.overlayUrl = somOverlay.image_path
+
+  const standardSegformer = latestFirst.find((img) => {
+    const p = img.image_path
+    return !isSomPath(p) && p.includes('segformer')
+  })
+  const standardMask = latestFirst.find((img) => {
+    const p = img.image_path
+    return !isSomPath(p) && (p.includes('mask') || p.includes('highlighted') || p.includes('result'))
+  })
+  if (standardSegformer) groups.standard.segformerUrl = standardSegformer.image_path
+  if (standardMask) groups.standard.crackDetectionUrl = standardMask.image_path
+  return groups
+}
+
+// 兼容旧调用
 const getCrackImage = (crackimages, type) => {
-  const image = crackimages.find(img => img.image_path.includes(type))
-  return image ? image.image_path : ''
+  const groups = getDetectionResultGroups(crackimages)
+  if (type === 'segformer') return groups.standard.segformerUrl || groups.som.overlayUrl || ''
+  if (type === 'mask') return groups.standard.crackDetectionUrl || groups.som.overlayUrl || ''
+  if (type === 'somOverlay') return groups.som.overlayUrl || ''
+  return ''
 }
 
 // 对几何变换图片进行排序
@@ -686,14 +756,18 @@ const downloadReport = async () => {
                   <h4 style="margin-bottom: 15px; color: #303133;">检测结果详情</h4>
                   <img src="${image.segoverviews[0].image_path}" style="max-width: 600px; width: 100%; height: auto; margin-bottom: 20px;" />
                   <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px;">
-                    ${sortedSegImages(image.segoverviews[0].segimages).map((seg, segIdx) => `
+                    ${sortedSegImages(image.segoverviews[0].segimages).map((seg, segIdx) => {
+                      const groups = getDetectionResultGroups(seg.crackimages)
+                      return `
                       <div style="border: 1px solid #e4e7ed; padding: 10px; border-radius: 4px;">
                         <h5 style="text-align: center; margin-bottom: 10px; color: #606266;">区域 ${segIdx + 1}</h5>
                         <img src="${seg.image_path}" style="width: 100%; max-width: 150px; height: auto; margin-bottom: 5px;" />
-                        <img src="${getCrackImage(seg.crackimages, 'segformer')}" style="width: 100%; max-width: 150px; height: auto; margin-bottom: 5px;" />
-                        <img src="${getCrackImage(seg.crackimages, 'mask')}" style="width: 100%; max-width: 150px; height: auto;" />
+                        ${groups.standard.segformerUrl ? `<img src="${groups.standard.segformerUrl}" style="width: 100%; max-width: 150px; height: auto; margin-bottom: 5px;" />` : ''}
+                        ${groups.standard.crackDetectionUrl ? `<img src="${groups.standard.crackDetectionUrl}" style="width: 100%; max-width: 150px; height: auto; margin-bottom: 5px;" />` : ''}
+                        ${groups.som.overlayUrl ? `<img src="${groups.som.overlayUrl}" style="width: 100%; max-width: 150px; height: auto; margin-bottom: 5px;" />` : ''}
                       </div>
-                    `).join('')}
+                      `
+                    }).join('')}
                   </div>
                 </div>
               ` : ''}
