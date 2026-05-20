@@ -15,10 +15,10 @@
     <div class="container mx-auto px-4 py-6">
       <div class="bg-white rounded p-4 mb-6">
         <div class="mb-4 rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-sm text-slate-700">
-          这里展示的是后端异常记录表中的预警记录，并按设备、方向、等级和时间范围查询。
+          这里展示的是后端异常记录表中的预警记录，并按设备、方向和时间范围查询。
         </div>
 
-        <div class="grid grid-cols-1 md:grid-cols-5 gap-4">
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
           <div>
             <label class="block mb-2">设备选择</label>
             <el-cascader
@@ -68,18 +68,6 @@
                 <span>{{ data.label }}</span>
               </template>
             </el-cascader>
-          </div>
-
-          <div>
-            <label class="block mb-2">预警等级</label>
-            <el-select v-model="selectedLevel" class="w-full" :disabled="loading">
-              <el-option
-                v-for="option in levelOptions"
-                :key="option.value"
-                :label="option.label"
-                :value="option.value"
-              />
-            </el-select>
           </div>
 
           <div class="md:col-span-2">
@@ -146,13 +134,6 @@
               <el-table-column prop="device_id" label="设备ID" min-width="120" fixed />
               <el-table-column prop="device_name" label="设备名称" min-width="120" fixed />
               <el-table-column prop="time" label="时间" min-width="180" />
-              <el-table-column label="预警等级" min-width="120">
-                <template #default="scope">
-                  <el-tag :type="getAlertLevelTag(scope.row.alert_level)" size="small">
-                    {{ getAlertLabel(scope.row.alert_level) }}
-                  </el-tag>
-                </template>
-              </el-table-column>
               <el-table-column label="实际值" min-width="120">
                 <template #default="scope">
                   {{ formatMetric(scope.row.actual_value) }}
@@ -206,12 +187,8 @@ import { Loading, InfoFilled } from '@element-plus/icons-vue'
 import { ElMessage } from 'element-plus'
 import {
   deriveAlertMetrics,
-  getAlertLevelLabel,
-  getAlertLevelTagType,
   getVibrationAlertConfig
 } from '~/composables/useVibrationAlertConfig'
-
-type AlertLevel = 'normal' | 'level3' | 'level2' | 'level1'
 
 interface DeviceInfo {
   device_id: string
@@ -238,7 +215,6 @@ interface TableRow extends AlertRecord {
   actual_value: number | null
   standard_value: number | null
   deviation: number | null
-  alert_level: AlertLevel
 }
 
 interface AbnormalResponse {
@@ -254,7 +230,6 @@ const apiServerUrl = 'http://8.153.161.229:8009'
 const loading = ref(false)
 const deviceOnlineStatus = ref<Record<string, boolean>>({})
 const chartData = ref<TableRow[]>([])
-const selectedLevel = ref('all')
 const paginationTotal = ref(0)
 const currentPage = ref(1)
 const pageSize = ref(100)
@@ -276,14 +251,6 @@ const defaultDeviceList: DeviceInfo[] = [
 ]
 
 const deviceList = ref<DeviceInfo[]>(defaultDeviceList)
-
-const levelOptions = [
-  { value: 'all', label: '全部等级' },
-  { value: 'level1', label: '一级预警' },
-  { value: 'level2', label: '二级预警' },
-  { value: 'level3', label: '三级预警' },
-  { value: 'normal', label: '普通异常' }
-]
 
 const directionLabels: Record<string, string> = {
   all: '全部方向',
@@ -548,7 +515,7 @@ watch(
 )
 
 watch(
-  () => [params.device, params.direction, selectedLevel.value, params.start_time, params.end_time],
+  () => [params.device, params.direction, params.start_time, params.end_time],
   resetCurrentResult,
   { deep: true }
 )
@@ -559,21 +526,9 @@ const getDirectionLabel = (direction: string): string =>
 const formatMetric = (value: number | null | undefined) =>
   typeof value === 'number' && Number.isFinite(value) ? value.toFixed(6) : '--'
 
-const normalizeAlertLevel = (level: unknown): AlertLevel | null => {
-  if (level === 'normal' || level === 'level1' || level === 'level2' || level === 'level3') {
-    return level
-  }
-  return null
-}
-
-const getAlertLabel = (level: AlertLevel) => getAlertLevelLabel(level)
-
-const getAlertLevelTag = (level: AlertLevel) => getAlertLevelTagType(level)
-
 const enrichAlertRecord = (record: AlertRecord, fallbackDeviceName: string): TableRow => {
   const deviceName = String(record.device_name || fallbackDeviceName)
   const metrics = deriveAlertMetrics(record, getVibrationAlertConfig(deviceName))
-  const backendLevel = normalizeAlertLevel(record.alert_level || record.level)
   const deviceId = String(record.device_id || getFallbackDeviceId(deviceName))
 
   return {
@@ -582,8 +537,7 @@ const enrichAlertRecord = (record: AlertRecord, fallbackDeviceName: string): Tab
     device_name: deviceName,
     actual_value: metrics.actualValue,
     standard_value: metrics.standardValue,
-    deviation: metrics.deviation,
-    alert_level: backendLevel || metrics.level
+    deviation: metrics.deviation
   }
 }
 
@@ -597,7 +551,6 @@ const fetchAbnormalRecords = async (
   const queryParams = {
     device: deviceName,
     direction: directionValue,
-    level: selectedLevel.value,
     start_time: params.start_time,
     end_time: params.end_time,
     page: String(options.page || currentPage.value),
@@ -710,7 +663,6 @@ const exportRowsToCsv = (rows: TableRow[], deviceId: string) => {
     '设备ID',
     '设备名称',
     '时间',
-    '预警等级',
     '实际值',
     '标准值',
     '绝对差',
@@ -723,7 +675,6 @@ const exportRowsToCsv = (rows: TableRow[], deviceId: string) => {
     row.device_id,
     row.device_name,
     row.time || '',
-    getAlertLabel(row.alert_level),
     formatMetric(row.actual_value),
     formatMetric(row.standard_value),
     formatMetric(row.deviation),

@@ -109,8 +109,11 @@
             <h2>全传感器阈值总览</h2>
           </div>
           <div class="overview-header-right">
-            <span class="overview-loaded-tag" :class="{ 'all-loaded': overviewLoadedCount === deviceOptions.length }">
-              已加载 {{ overviewLoadedCount }} / {{ deviceOptions.length }}
+            <span
+              class="overview-loaded-tag"
+              :class="{ 'all-loaded': activeOverviewLoadedCount === activeOverviewDevices.length }"
+            >
+              当前视图已加载 {{ activeOverviewLoadedCount }} / {{ activeOverviewDevices.length }}
             </span>
             <UButton size="sm" color="primary" :loading="loadingOverview" @click="fetchAllThresholds">
               加载全部传感器阈值
@@ -118,25 +121,45 @@
           </div>
         </div>
 
+        <div class="overview-toolbar">
+          <div class="overview-type-switch" role="tablist" aria-label="传感器类型切换">
+            <button
+              v-for="option in overviewTypeOptions"
+              :key="option.value"
+              type="button"
+              class="overview-type-button"
+              :class="{ active: activeOverviewType === option.value }"
+              :aria-pressed="activeOverviewType === option.value"
+              @click="activeOverviewType = option.value"
+            >
+              <span>{{ option.label }}</span>
+              <small>{{ option.hint }}</small>
+            </button>
+          </div>
+      
+        </div>
+
         <div class="overview-legend">
-          <span class="legend-dot" style="background:#3b82f6"></span><span>衷和楼·加速度计</span>
-          <span class="legend-dot" style="background:#f59e0b"></span><span>衷和楼·应变计</span>
-          <span class="legend-dot" style="background:#10b981"></span><span>安楼·加速度计</span>
-          <span class="legend-dot" style="background:#8b5cf6"></span><span>安楼·应变计</span>
+          <template v-for="item in activeOverviewLegendItems" :key="item.label">
+            <span class="legend-dot" :style="{ background: item.color }"></span><span>{{ item.label }}</span>
+          </template>
         </div>
 
         <div v-if="overviewLoadedCount === 0 && !loadingOverview" class="overview-empty">
-          <p>点击「加载全部传感器阈值」后，图表将展示所有传感器各通道的上下限范围，竖线为中心偏移量。</p>
+          <p>点击「加载全部传感器阈值」后，可按设备类型查看各通道的上下限范围，竖线为中心偏移量。</p>
         </div>
-        <div v-if="loadingOverview && overviewLoadedCount === 0" class="overview-loading">
+        <div v-else-if="loadingOverview && overviewLoadedCount === 0" class="overview-loading">
           <span>加载中，正在批量拉取各传感器阈值……</span>
         </div>
+        <div v-else-if="activeOverviewRows.length === 0" class="overview-empty">
+          <p>当前暂无{{ activeOverviewLabel }}阈值数据，请检查对应设备是否加载成功。</p>
+        </div>
 
-        <div v-if="overviewLoadedCount > 0" ref="overviewChartRef" class="overview-chart-canvas"></div>
+        <div v-else ref="overviewChartRef" class="overview-chart-canvas"></div>
 
-        <div class="overview-status-grid" v-if="overviewLoadedCount > 0 || loadingOverview">
+        <div class="overview-status-grid" v-if="activeOverviewHasAnyStatus || loadingOverview">
           <div
-            v-for="device in deviceOptions"
+            v-for="device in activeOverviewDevices"
             :key="device.value"
             class="overview-status-item"
             :class="{
@@ -703,9 +726,28 @@ const overviewSnapshots = reactive<Record<string, DeviceOverviewState>>(
 const overviewChartRef = ref<HTMLDivElement | null>(null);
 let overviewChart: echarts.ECharts | null = null;
 const loadingOverview = ref(false);
+const overviewTypeOptions: Array<{ value: DeviceType; label: string; hint: string }> = [
+  { value: 'accelerometer', label: '加速度计', hint: '单位为 g' },
+  { value: 'strainGauge', label: '应力计', hint: '单位为 με' },
+];
+const activeOverviewType = ref<DeviceType>('accelerometer');
 
 const overviewLoadedCount = computed(() =>
   deviceOptions.filter(d => overviewSnapshots[d.value]?.loaded).length
+);
+const getOverviewTypeLabel = (type: DeviceType) => (type === 'accelerometer' ? '加速度计' : '应力计');
+const activeOverviewLabel = computed(() => getOverviewTypeLabel(activeOverviewType.value));
+const activeOverviewDevices = computed(() =>
+  deviceOptions.filter(device => device.type === activeOverviewType.value)
+);
+const activeOverviewLoadedCount = computed(() =>
+  activeOverviewDevices.value.filter(device => overviewSnapshots[device.value]?.loaded).length
+);
+const activeOverviewHasAnyStatus = computed(() =>
+  activeOverviewDevices.value.some((device) => {
+    const state = overviewSnapshots[device.value];
+    return Boolean(state?.loaded || state?.loading || state?.error);
+  })
 );
 
 interface OverviewRow {
@@ -714,6 +756,7 @@ interface OverviewRow {
   upper: number;
   offset: number;
   color: string;
+  deviceType: DeviceType;
 }
 
 const OVERVIEW_ROW_HEIGHT = 22;
@@ -727,6 +770,27 @@ const OVERVIEW_COLORS: Record<string, string> = {
   '安楼-strainGauge':     '#8b5cf6',
 };
 
+const activeOverviewLegendItems = computed(() =>
+  buildingNames.map((building) => ({
+    label: `${building}·${activeOverviewLabel.value}`,
+    color: OVERVIEW_COLORS[`${building}-${activeOverviewType.value}`] ?? '#64748b',
+  }))
+);
+
+const formatOverviewAxisValue = (value: number, deviceType: DeviceType) => {
+  if (deviceType === 'accelerometer') {
+    return value.toFixed(3);
+  }
+
+  const abs = Math.abs(value);
+  if (abs >= 1000) return value.toFixed(0);
+  if (abs >= 100) return value.toFixed(1);
+  return value.toFixed(2);
+};
+
+const formatOverviewTooltipValue = (value: number, deviceType: DeviceType) =>
+  deviceType === 'accelerometer' ? value.toFixed(6) : formatOverviewAxisValue(value, deviceType);
+
 const overviewChartRows = computed<OverviewRow[]>(() => {
   const rows: OverviewRow[] = [];
   const chLabels: Record<ChannelKey, string> = { x: 'X', y: 'Y', z: 'Z', ch1: 'Ch1', ch2: 'Ch2' };
@@ -738,14 +802,27 @@ const overviewChartRows = computed<OverviewRow[]>(() => {
     for (const ch of channels) {
       const d = snap.channels[ch];
       if (!d) continue;
-      rows.push({ label: `${device.label} · ${chLabels[ch]}`, lower: d.lower, upper: d.upper, offset: d.offset, color });
+      rows.push({
+        label: `${device.label} · ${chLabels[ch]}`,
+        lower: d.lower,
+        upper: d.upper,
+        offset: d.offset,
+        color,
+        deviceType: device.type,
+      });
     }
   }
   return rows;
 });
 
+const activeOverviewRows = computed<OverviewRow[]>(() =>
+  overviewChartRows.value.filter((row) => row.deviceType === activeOverviewType.value)
+);
+
 const buildOverviewChartOption = (rows: OverviewRow[]): any => {
   if (rows.length === 0) return {};
+  const deviceType = rows[0].deviceType;
+  const typeLabel = getOverviewTypeLabel(deviceType);
   const allVals = rows.flatMap(r => [r.lower, r.upper]);
   const xMin = Math.min(...allVals);
   const xMax = Math.max(...allVals);
@@ -759,7 +836,7 @@ const buildOverviewChartOption = (rows: OverviewRow[]): any => {
         const idx = params.dataIndex ?? 0;
         const row = rows[idx];
         if (!row) return '';
-        return `<b>${row.label}</b><br/>上限：${row.upper.toFixed(6)}<br/>下限：${row.lower.toFixed(6)}<br/>中心：${row.offset.toFixed(6)}<br/>范围幅：${(row.upper - row.lower).toFixed(6)}`;
+        return `<b>${row.label}</b><br/>上限：${formatOverviewTooltipValue(row.upper, row.deviceType)}<br/>下限：${formatOverviewTooltipValue(row.lower, row.deviceType)}<br/>中心：${formatOverviewTooltipValue(row.offset, row.deviceType)}<br/>范围幅：${formatOverviewTooltipValue(row.upper - row.lower, row.deviceType)}`;
       },
     },
     animation: false,
@@ -768,7 +845,13 @@ const buildOverviewChartOption = (rows: OverviewRow[]): any => {
       type: 'value',
       min: xMin - xPad,
       max: xMax + xPad,
-      axisLabel: { color: '#64748b', fontSize: 10, formatter: (v: number) => v.toFixed(3) },
+      name: `${typeLabel}阈值`,
+      nameTextStyle: { color: '#64748b', padding: [10, 0, 0, 0] },
+      axisLabel: {
+        color: '#64748b',
+        fontSize: 10,
+        formatter: (v: number) => formatOverviewAxisValue(v, deviceType),
+      },
       splitLine: { lineStyle: { color: '#e2e8f0' } },
     },
     yAxis: {
@@ -842,13 +925,16 @@ const initOverviewChart = () => {
 
 const updateOverviewChart = async () => {
   if (!overviewChart) return;
-  const rows = overviewChartRows.value;
-  if (rows.length === 0) return;
+  const rows = activeOverviewRows.value;
   const h = Math.max(240, rows.length * OVERVIEW_ROW_HEIGHT + OVERVIEW_CHART_PADDING);
   if (overviewChartRef.value) overviewChartRef.value.style.height = `${h}px`;
   // 等 DOM 应用新高度后再 resize，否则 ECharts 仍按旧尺寸布局留下空白
   await nextTick();
   overviewChart.resize({ height: h });
+  if (rows.length === 0) {
+    overviewChart.clear();
+    return;
+  }
   overviewChart.setOption(buildOverviewChartOption(rows), true);
 };
 
@@ -858,7 +944,7 @@ watch(overviewChartRef, async (el) => {
   else { overviewChart?.dispose(); overviewChart = null; }
 });
 
-watch(overviewChartRows, () => {
+watch(activeOverviewRows, () => {
   if (overviewChart) nextTick(updateOverviewChart);
 }, { deep: true });
 
@@ -1335,6 +1421,24 @@ onMounted(async () => {
   .channel-header {
     flex-direction: column;
   }
+
+  .overview-toolbar {
+    flex-direction: column;
+  }
+
+  .overview-type-switch {
+    width: 100%;
+  }
+
+  .overview-type-button {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .overview-context-note {
+    max-width: none;
+    text-align: left;
+  }
 }
 
 /* ── Wind Visual Panel ─────────────────────────────────────────────── */
@@ -1557,6 +1661,65 @@ onMounted(async () => {
   color: #16a34a;
   background: #dcfce7;
   border-color: #86efac;
+}
+
+.overview-toolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.overview-type-switch {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+}
+
+.overview-type-button {
+  border: none;
+  background: transparent;
+  color: #475569;
+  border-radius: 12px;
+  padding: 10px 14px;
+  min-width: 144px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.overview-type-button span {
+  font-size: 14px;
+  font-weight: 700;
+  color: inherit;
+}
+
+.overview-type-button small {
+  font-size: 11px;
+  color: inherit;
+  opacity: 0.85;
+}
+
+.overview-type-button.active {
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  color: #1d4ed8;
+  box-shadow: 0 10px 18px rgba(59, 130, 246, 0.14);
+}
+
+.overview-context-note {
+  margin: 0;
+  max-width: 420px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #64748b;
+  text-align: right;
 }
 
 .overview-legend {
