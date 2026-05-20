@@ -348,8 +348,6 @@ import { ref, computed, onMounted, watch } from 'vue'
 import { useRoute } from 'vue-router'
 import axios from 'axios'
 import { ElMessage, ElLoading } from 'element-plus'
-import jsPDF from 'jspdf'
-import html2canvas from 'html2canvas'
 import { marked } from 'marked'
 
 const route = useRoute()
@@ -587,177 +585,6 @@ const renderMarkdown = (content) => {
   }
 }
 
-const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms))
-
-const normalizeImageUrlForFetch = (url) => {
-  if (!url || typeof url !== 'string') return url
-  // 优先走本地代理，减少跨域与直连不稳定问题
-  const prefix = 'http://8.159.143.133:9000/oss'
-  if (url.startsWith(prefix)) {
-    return `/oss${url.slice(prefix.length)}`
-  }
-  return url
-}
-
-const fetchImageAsObjectUrl = async (url, timeoutMs = 30000) => {
-  const controller = new AbortController()
-  const timer = setTimeout(() => controller.abort(), timeoutMs)
-  try {
-    const response = await fetch(normalizeImageUrlForFetch(url), {
-      method: 'GET',
-      cache: 'no-store',
-      signal: controller.signal
-    })
-    if (!response.ok) {
-      throw new Error(`HTTP ${response.status}`)
-    }
-    const blob = await response.blob()
-    return URL.createObjectURL(blob)
-  } finally {
-    clearTimeout(timer)
-  }
-}
-
-const fetchImageAsObjectUrlWithRetry = async (url, attempts = 3) => {
-  let lastError = null
-  for (let i = 0; i < attempts; i++) {
-    try {
-      return await fetchImageAsObjectUrl(url, 30000 + i * 10000)
-    } catch (error) {
-      lastError = error
-      if (i < attempts - 1) {
-        await sleep(400 * (i + 1))
-      }
-    }
-  }
-  throw lastError || new Error('image fetch failed')
-}
-
-const prepareImagesForPdf = async (container) => {
-  const images = Array.from(container.querySelectorAll('img'))
-  const objectUrls = []
-  let failed = 0
-
-  // 限制并发，避免瞬时请求过高触发超时/中断
-  const concurrency = 4
-  let cursor = 0
-  const worker = async () => {
-    while (cursor < images.length) {
-      const index = cursor
-      cursor += 1
-      const img = images[index]
-      const raw = img.getAttribute('src') || ''
-      if (!raw || raw.startsWith('data:') || raw.startsWith('blob:')) continue
-      try {
-        const objectUrl = await fetchImageAsObjectUrlWithRetry(raw, 3)
-        img.src = objectUrl
-        objectUrls.push(objectUrl)
-        await new Promise((resolve) => {
-          img.onload = resolve
-          img.onerror = resolve
-        })
-      } catch (error) {
-        failed += 1
-        console.error('PDF image preload failed:', raw, error?.message || error)
-        await new Promise((resolve) => {
-          if (img.complete) return resolve()
-          img.onload = resolve
-          img.onerror = resolve
-        })
-      }
-    }
-  }
-
-  await Promise.all(Array.from({ length: concurrency }, () => worker()))
-
-  return { objectUrls, failed }
-}
-
-// 压缩图片
-const compressImage = (base64String, maxWidth = 800, quality = 0.7) => {
-  return new Promise((resolve, reject) => {
-    const img = new Image()
-    img.onload = () => {
-      const canvas = document.createElement('canvas')
-      const ctx = canvas.getContext('2d')
-      
-      // 计算压缩后的尺寸
-      let width = img.width
-      let height = img.height
-      
-      if (width > maxWidth) {
-        height = (maxWidth / width) * height
-        width = maxWidth
-      }
-      
-      canvas.width = width
-      canvas.height = height
-      
-      // 绘制压缩后的图片
-      ctx.drawImage(img, 0, 0, width, height)
-      
-      // 转换为压缩后的 base64
-      const compressedBase64 = canvas.toDataURL('image/jpeg', quality)
-      resolve(compressedBase64)
-    }
-    
-    img.onerror = reject
-    img.src = base64String
-  })
-}
-
-// 改进的PDF生成函数，避免空白页
-const generatePDFFromCanvas = (canvas, pdf) => {
-  const imgWidth = 190 // A4宽度减去边距
-  const pageHeight = 277 // A4高度减去边距
-  const imgHeight = (canvas.height * imgWidth) / canvas.width
-  
-  // 将canvas转换为图片
-  const imgData = canvas.toDataURL('image/jpeg', 0.95)
-  
-  // 如果图片高度小于一页，直接添加
-  if (imgHeight <= pageHeight) {
-    pdf.addImage(imgData, 'JPEG', 10, 10, imgWidth, imgHeight)
-    return
-  }
-  
-  // 多页处理
-  let position = 0
-  let pageCount = 0
-  
-  while (position < canvas.height) {
-    if (pageCount > 0) {
-      pdf.addPage()
-    }
-    
-    // 创建临时canvas用于当前页
-    const pageCanvas = document.createElement('canvas')
-    const pageCtx = pageCanvas.getContext('2d')
-    
-    // 计算当前页的高度
-    const sourceY = position
-    const sourceHeight = Math.min(canvas.height - position, (pageHeight / imgWidth) * canvas.width)
-    
-    pageCanvas.width = canvas.width
-    pageCanvas.height = sourceHeight
-    
-    // 绘制当前页内容
-    pageCtx.drawImage(
-      canvas,
-      0, sourceY, canvas.width, sourceHeight,
-      0, 0, canvas.width, sourceHeight
-    )
-    
-    // 添加到PDF
-    const pageData = pageCanvas.toDataURL('image/jpeg', 0.95)
-    const pageImgHeight = (sourceHeight * imgWidth) / canvas.width
-    pdf.addImage(pageData, 'JPEG', 10, 10, imgWidth, pageImgHeight)
-    
-    position += sourceHeight
-    pageCount++
-  }
-}
-
 // 预览报告
 const previewReport = () => {
   previewVisible.value = true
@@ -823,183 +650,101 @@ const saveReport = async () => {
 }
 
 // 下载报告（不显示预览直接下载）
+// PDF 生成已迁移到后端 (typst 矢量渲染)。
+// 流程：POST /reports/generate → 轮询任务状态 → blob 下载。
+// 前端只负责拼载荷、显示进度、触发浏览器下载。
+
+const REPORT_POLL_INTERVAL_MS = 800
+const REPORT_POLL_TIMEOUT_MS  = 5 * 60 * 1000
+
+const sleepMs = (ms) => new Promise((r) => setTimeout(r, ms))
+
+const buildReportPayload = () => {
+  const projectId = route.query.id || projectDetails.value.project_id
+  return {
+    project_id: projectId,
+    reportData: reportData.value,
+    imageDataList: imageDataList.value,
+    projectHierarchy: projectDetails.value,
+  }
+}
+
+const triggerBrowserDownload = (blob, filename) => {
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  // Give the download dispatch a tick before revoking; some browsers
+  // (Safari, older Edge) cancel the download otherwise.
+  setTimeout(() => URL.revokeObjectURL(url), 1000)
+}
+
 const downloadReport = async () => {
   const loadingInstance = ElLoading.service({
     lock: true,
-    text: '正在生成PDF，请稍候...',
-    background: 'rgba(0, 0, 0, 0.7)'
+    text: '正在提交报告生成任务...',
+    background: 'rgba(0, 0, 0, 0.7)',
   })
-  
-  let hiddenDiv = null
-  const objectUrls = []
+
   try {
-    console.log('开始生成PDF...')
-    
-    // 创建一个隐藏的div来渲染报告
-    hiddenDiv = document.createElement('div')
-    hiddenDiv.style.position = 'absolute'
-    hiddenDiv.style.left = '-9999px'
-    hiddenDiv.style.top = '0'
-    hiddenDiv.style.width = '794px'
-    document.body.appendChild(hiddenDiv)
-    
-    loadingInstance.setText('正在准备报告内容...')
-    console.log('准备报告HTML...')
-    
-    // 生成报告HTML
-    hiddenDiv.innerHTML = `
-      <div class="report-preview" style="padding: 40px; background-color: white; font-family: 'Microsoft YaHei', Arial, sans-serif;">
-        <div class="report-header" style="text-align: center; margin-bottom: 40px; padding-bottom: 20px; border-bottom: 2px solid #e4e7ed;">
-          <h1 style="margin-bottom: 20px; color: #303133;">${reportData.value.title || '裂缝检测报告'}</h1>
-          <div class="report-info">
-            <p style="margin: 8px 0; color: #606266;">项目名称：${reportData.value.projectName}</p>
-            <p style="margin: 8px 0; color: #606266;">检测单位：${reportData.value.organization}</p>
-            <p style="margin: 8px 0; color: #606266;">检测人员：${reportData.value.inspector}</p>
-            <p style="margin: 8px 0; color: #606266;">检测日期：${reportData.value.inspectionDate}</p>
-          </div>
-        </div>
-        <div class="report-body" style="line-height: 1.8;">
-          <h2 style="margin-top: 30px; margin-bottom: 15px; color: #303133;">检测结果</h2>
-          ${projectDetails.value.images.map((image, index) => `
-            <div class="image-report-section" style="margin-bottom: 30px; page-break-inside: avoid;">
-              <h3 style="margin-top: 20px; margin-bottom: 10px; color: #606266;">图片 ${index + 1}</h3>
-              <div style="margin-bottom: 20px;">
-                <img src="${image.image_path}" style="max-width: 600px; width: 100%; height: auto;" />
-              </div>
-              <div class="image-report-text">
-                <p style="margin: 10px 0; color: #606266;"><strong>描述：</strong>${imageDataList.value[index]?.description || '暂无描述'}</p>
-                <p style="margin: 10px 0; color: #606266;"><strong>裂缝情况：</strong>${getCrackStatusText(imageDataList.value[index]?.crackStatus)}</p>
-                <p style="margin: 10px 0; color: #606266;"><strong>详细说明：</strong>${imageDataList.value[index]?.details || '暂无详细说明'}</p>
-                <p style="margin: 10px 0; color: #606266;"><strong>处理建议：</strong>${imageDataList.value[index]?.suggestions || '暂无建议'}</p>
-                ${image.have_crack === '1' && imageDataList.value[index]?.llmAnalysis ? `
-                  <div style="margin-top: 15px; padding: 10px; background-color: #f5f7fa; border-radius: 4px;">
-                    <p style="margin: 0 0 10px 0; color: #303133; font-weight: bold;">智能分析：</p>
-                    <div style="margin: 0; color: #606266; line-height: 1.6;">${renderMarkdown(imageDataList.value[index]?.llmAnalysis)}</div>
-                  </div>
-                ` : ''}
-              </div>
-              ${image.segoverviews && image.segoverviews[0] ? `
-                <div style="margin-top: 20px; padding-top: 20px; border-top: 1px solid #e4e7ed;">
-                  <h4 style="margin-bottom: 15px; color: #303133;">检测结果详情</h4>
-                  <img src="${image.segoverviews[0].image_path}" style="max-width: 600px; width: 100%; height: auto; margin-bottom: 20px;" />
-                  <div style="display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px;">
-                    ${sortedSegImages(image.segoverviews[0].segimages).map((seg, segIdx) => {
-                      const slots = getAvailableReportImageSlots(seg)
-                      return `
-                      <div style="border: 1px solid #e4e7ed; padding: 10px; border-radius: 6px; page-break-inside: avoid; background: #fff;">
-                        <h5 style="text-align: center; margin-bottom: 10px; color: #606266; min-height: 22px; line-height: 22px;">区域 ${segIdx + 1}</h5>
-                        <div style="display: grid; grid-template-columns: 1fr; gap: 8px;">
-                          ${slots.map((slot) => `
-                            <div style="border: 1px solid #eef0f3; border-radius: 4px; padding: 6px;">
-                              <p style="margin: 0 0 6px 0; font-size: 12px; color: #909399; text-align: center; min-height: 18px; line-height: 18px;">${slot.label}</p>
-                              <div style="height: 120px; border: 1px solid #f0f0f0; border-radius: 4px; display: flex; align-items: center; justify-content: center; overflow: hidden; background: #fafafa;">
-                                <img src="${slot.url}" style="width: 100%; height: 100%; object-fit: contain; object-position: center;" />
-                              </div>
-                            </div>
-                          `).join('')}
-                        </div>
-                      </div>
-                      `
-                    }).join('')}
-                  </div>
-                </div>
-              ` : ''}
-            </div>
-          `).join('')}
-          <div class="report-final-section" style="margin-top: 30px;">
-            <h2 style="margin-top: 0; margin-bottom: 15px; color: #303133;">总体结论</h2>
-            <p style="margin: 10px 0; color: #606266; white-space: pre-wrap;">${reportData.value.overallAssessment || '暂无总体评估'}</p>
-            <h2 style="margin-top: 30px; margin-bottom: 15px; color: #303133;">建议措施</h2>
-            <p style="margin: 10px 0; color: #606266; white-space: pre-wrap;">${reportData.value.recommendations || '暂无建议措施'}</p>
-          </div>
-        </div>
-      </div>
-    `
-    
-    // 图片预加载为 blob URL，减少跨域/签名带来的导出丢图
-    loadingInstance.setText('正在预加载图片...')
-    const preloadResult = await prepareImagesForPdf(hiddenDiv)
-    objectUrls.push(...preloadResult.objectUrls)
-    await sleep(80)
+    // 1) 提交任务
+    const submitResp = await axios.post('/crackdetection/reports/generate', buildReportPayload())
+    const taskId = submitResp.data?.task_id
+    if (!taskId) {
+      throw new Error('后端未返回 task_id')
+    }
 
-    // 创建PDF
-    const pdf = new jsPDF({
-      orientation: 'portrait',
-      unit: 'mm',
-      format: 'a4',
-      compress: true // 启用PDF压缩
-    })
-
-    // 分块渲染，避免超长 canvas 导致图片丢失
-    const reportPreview = hiddenDiv.querySelector('.report-preview')
-    const headerEl = reportPreview.querySelector('.report-header')
-    const imageSections = Array.from(reportPreview.querySelectorAll('.image-report-section'))
-    const finalSection = reportPreview.querySelector('.report-final-section')
-
-    const blocks = []
-    if (headerEl) {
-      // Keep title and first image section on the same PDF page.
-      const firstPageBlock = document.createElement('div')
-      firstPageBlock.style.backgroundColor = '#fff'
-      firstPageBlock.style.paddingBottom = '8px'
-      firstPageBlock.appendChild(headerEl.cloneNode(true))
-      if (imageSections.length > 0) {
-        firstPageBlock.appendChild(imageSections[0].cloneNode(true))
+    // 2) 轮询进度
+    loadingInstance.setText('正在生成 PDF (0%)...')
+    const pollDeadline = Date.now() + REPORT_POLL_TIMEOUT_MS
+    while (true) {
+      if (Date.now() > pollDeadline) {
+        throw new Error('生成超时，请稍后重试')
       }
-      // html2canvas requires the target element to exist in document tree.
-      hiddenDiv.appendChild(firstPageBlock)
-      blocks.push(firstPageBlock)
-    } else if (imageSections.length > 0) {
-      blocks.push(imageSections[0])
-    }
+      const statusResp = await axios.get(`/crackdetection/reports/tasks/${taskId}`)
+      const data = statusResp.data || {}
+      const pct = Number.isFinite(data.progress) ? data.progress : 0
+      const stats = data.stats || {}
+      const failed = stats.failed_images || 0
+      const total  = stats.total_images  || 0
+      loadingInstance.setText(
+        failed > 0
+          ? `正在生成 PDF (${pct}%) — 图片加载失败 ${failed}/${total}`
+          : `正在生成 PDF (${pct}%)...`
+      )
 
-    blocks.push(...imageSections.slice(1))
-    if (finalSection) {
-      blocks.push(finalSection)
-    }
-
-    let firstBlock = true
-    for (let i = 0; i < blocks.length; i++) {
-      loadingInstance.setText(`正在生成PDF页面（${i + 1}/${blocks.length}）...`)
-      const block = blocks[i]
-      const canvas = await html2canvas(block, {
-        scale: 1.5,
-        useCORS: true,
-        allowTaint: true,
-        backgroundColor: '#ffffff',
-        logging: false
-      })
-      if (!firstBlock) {
-        pdf.addPage()
+      if (data.status === 'success') break
+      if (data.status === 'failed') {
+        throw new Error(data.error || '后端报告生成失败')
       }
-      generatePDFFromCanvas(canvas, pdf)
-      firstBlock = false
+      await sleepMs(REPORT_POLL_INTERVAL_MS)
     }
-    
-    // 保存PDF
-    loadingInstance.setText('正在保存PDF文件...')
-    console.log('保存PDF...')
+
+    // 3) 下载 PDF
+    loadingInstance.setText('正在下载 PDF...')
+    const pdfResp = await axios.get(
+      `/crackdetection/reports/tasks/${taskId}/download`,
+      { responseType: 'blob' },
+    )
     const fileName = `${reportData.value.projectName || '裂缝检测'}_报告_${new Date().toISOString().split('T')[0]}.pdf`
-    pdf.save(fileName)
-    
-    console.log('PDF生成完成！')
+    triggerBrowserDownload(pdfResp.data, fileName)
+
     loadingInstance.close()
-    ElMessage.success(preloadResult.failed > 0 ? `PDF下载成功（${preloadResult.failed} 张图片预加载失败）` : 'PDF下载成功')
+    ElMessage.success('PDF 下载成功')
   } catch (error) {
-    console.error('PDF生成失败:', error)
+    console.error('生成报告失败:', error)
     loadingInstance.close()
-    ElMessage.error('PDF生成失败：' + error.message)
-  } finally {
-    if (hiddenDiv && hiddenDiv.parentNode) {
-      hiddenDiv.parentNode.removeChild(hiddenDiv)
-    }
-    objectUrls.forEach((url) => URL.revokeObjectURL(url))
+    const detail = error.response?.data?.error || error.message
+    ElMessage.error('PDF 生成失败：' + detail)
   }
 }
 
 // 导出PDF
 const exportPDF = async () => {
-  // 与主下载按钮复用同一条更稳定的导出链路
+  // 与主下载按钮复用同一条链路
   await downloadReport()
 }
 
