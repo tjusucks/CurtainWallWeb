@@ -3,9 +3,6 @@
     <div ref="hostRef" class="gi-pointcloud-canvas">
       <div class="gi-pointcloud-toolbar">
         <button type="button" @click="setView('reset')">重置视角</button>
-        <button type="button" @click="setView('front')">正视</button>
-        <button type="button" @click="setView('top')">俯视</button>
-        <button type="button" @click="setView('side')">侧视</button>
       </div>
 
       <div v-if="!sceneReady" class="gi-pointcloud-empty">
@@ -40,6 +37,7 @@
         </div>
       </div>
 
+      <p class="gi-legend-note">红绿轴为检测玻璃平面。</p>
       <p v-if="legendText" class="gi-legend-note">{{ legendText }}</p>
       <p v-if="legendSource === 'raw'" class="gi-legend-note">
         当前结果未提供投影后的点云坐标，前端已回退到原始点云字段展示，建议以后端投影结果为准。
@@ -110,7 +108,7 @@ interface SceneData {
   viewTarget: [number, number, number]
 }
 
-type ViewName = 'reset' | 'front' | 'top' | 'side'
+type ViewName = 'reset'
 
 const props = defineProps<{
   data: PointCloudData
@@ -123,10 +121,7 @@ const legendSource = ref<'projected' | 'raw'>('projected')
 const hasHeightBand = computed(() => props.data.fit_height_band?.enabled === true)
 
 const viewPresets = reactive<Record<ViewName, [number, number, number]>>({
-  reset: [0, 0, 0],
-  front: [0, 0, 0],
-  top: [0, 0, 0],
-  side: [0, 0, 0]
+  reset: [0, 0, 0]
 })
 
 let renderer: THREE.WebGLRenderer | null = null
@@ -138,6 +133,12 @@ let animationFrameId = 0
 let sceneGroup: THREE.Group | null = null
 let currentSceneData: SceneData | null = null
 let activeView: ViewName = 'reset'
+
+function releaseCanvasWheelForScroll(event: WheelEvent) {
+  if (!event.ctrlKey && !event.metaKey) {
+    event.stopImmediatePropagation()
+  }
+}
 
 function resolvePointCloudData(data: PointCloudData): ResolvedPointCloud {
   if (Array.isArray(data.projected_points) && data.projected_points.length > 0) {
@@ -260,6 +261,7 @@ function buildSceneData(resolved: ResolvedPointCloud): SceneData | null {
   const frameMaxZ = Math.max(maxZ + planePadding * 1.8, dominantSpan * 0.72 + planePadding)
   const frameRadius = Math.hypot(frameMaxX, frameMaxY, frameMaxZ) / 2
   const viewOffsetX = Math.min(Math.max(frameMaxX * 0.08, 28), frameMaxX * 0.18)
+  const viewOffsetY = Math.min(Math.max(frameMaxY * 0.06, 18), frameMaxY * 0.14)
 
   let heightBandPlanes: HeightBandPlaneDisplay[] | undefined
   const fitHeightBand = resolved.fitHeightBand
@@ -310,14 +312,12 @@ function buildSceneData(resolved: ResolvedPointCloud): SceneData | null {
     pointSize: THREE.MathUtils.clamp(dominantSpanRaw / 150, 4, 7),
     axisLength: Math.max(frameMaxX, frameMaxY, frameMaxZ) * 1.08,
     planePadding,
-    cameraDistance: Math.max(frameMaxX, frameMaxY, frameMaxZ) * 0.95 + planePadding * 2.2,
-    target: [centerX, centerY, centerZ],
     heightBandPlanes,
     fitPlaneZ: shiftZ,
     zExaggeration,
     cameraDistance: frameRadius,
     target: [centerX, centerY, centerZ],
-    viewTarget: [centerX + viewOffsetX, centerY, centerZ]
+    viewTarget: [centerX - viewOffsetX * 2.8, centerY + viewOffsetY, centerZ]
   }
 }
 
@@ -583,6 +583,8 @@ function ensureRenderer() {
   camera = new THREE.PerspectiveCamera(40, 1, 0.1, 100000)
   camera.up.set(0, 0, 1)
 
+  renderer.domElement.addEventListener('wheel', releaseCanvasWheelForScroll, { passive: true })
+
   controls = new OrbitControls(camera, renderer.domElement)
   controls.enablePan = true
   controls.enableZoom = true
@@ -631,24 +633,9 @@ function updateViewPresets(sceneData: SceneData) {
   controls.maxDistance = Math.max(distance * 4, sceneData.frameRadius * 10)
 
   viewPresets.reset = [
-    sceneData.viewTarget[0] + distance * 0.92,
-    sceneData.viewTarget[1] - distance * 0.9,
-    sceneData.viewTarget[2] + distance * 0.72
-  ]
-  viewPresets.front = [
     sceneData.viewTarget[0],
-    sceneData.viewTarget[1] - distance * 1.16,
-    sceneData.viewTarget[2] + distance * 0.14
-  ]
-  viewPresets.top = [
-    sceneData.viewTarget[0],
-    sceneData.viewTarget[1],
-    sceneData.viewTarget[2] + distance * 1.3
-  ]
-  viewPresets.side = [
-    sceneData.viewTarget[0] + distance * 1.16,
-    sceneData.viewTarget[1],
-    sceneData.viewTarget[2] + distance * 0.14
+    sceneData.viewTarget[1] + distance * 1.16,
+    sceneData.viewTarget[2] + distance * 0.18
   ]
 }
 
@@ -768,10 +755,12 @@ onBeforeUnmount(() => {
     disposeObject(sceneGroup)
   }
 
+  const domElement = renderer?.domElement
   renderer?.dispose()
 
-  if (renderer?.domElement && renderer.domElement.parentNode) {
-    renderer.domElement.parentNode.removeChild(renderer.domElement)
+  if (domElement) {
+    domElement.removeEventListener('wheel', releaseCanvasWheelForScroll)
+    domElement.parentNode?.removeChild(domElement)
   }
 })
 </script>

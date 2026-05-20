@@ -14,8 +14,8 @@
           />
 
           <div class="gi-panel gi-workbench">
-            <div class="gi-workbench__grid">
-              <div>
+            <div class="gi-workbench__stack">
+              <div class="gi-upload-section">
                 <div class="gi-panel-title">
                   <h3>上传检测图像</h3>
                   <span>{{ filledCount }}/{{ maxCount }} 已就绪</span>
@@ -26,6 +26,7 @@
                   :preview-urls="previewUrls"
                   :current-index="currentIndex"
                   :disabled="isSubmitting"
+                  :slot-tips="slotTips"
                   @go-prev="goPrev"
                   @go-next="goNext"
                   @select-file="handleSelectFile"
@@ -33,7 +34,7 @@
                 />
               </div>
 
-              <div>
+              <div class="gi-action-section">
                 <div class="gi-panel-title">
                   <h3>检测作业面板</h3>
                   <span>BURST SCAN</span>
@@ -52,30 +53,35 @@
                       请上传 {{ maxCount }} 张图片后再开始检测。
                     </p>
 
-                    <button
-                      type="button"
-                      class="gi-primary-button"
-                      :disabled="!isComplete || isSubmitting"
-                      @click="handleDetect"
-                    >
-                      <UIcon :name="isSubmitting ? 'i-heroicons-arrow-path' : 'i-material-symbols-sound-detection-glass-break-rounded'" :class="{ 'gi-spin': isSubmitting }" />
-                      <span>{{ isSubmitting ? 'AI 检测中...' : '开始检测' }}</span>
-                    </button>
+                    <div class="gi-action-buttons">
+                      <button
+                        type="button"
+                        class="gi-primary-button"
+                        :disabled="!isComplete || isSubmitting"
+                        @click="handleDetect"
+                      >
+                        <UIcon :name="isSubmitting ? 'i-heroicons-arrow-path' : 'i-material-symbols-sound-detection-glass-break-rounded'" :class="{ 'gi-spin': isSubmitting }" />
+                        <span>{{ isSubmitting ? 'AI 检测中...' : '开始检测' }}</span>
+                      </button>
+
+                      <button v-if="result" type="button" class="gi-secondary-button" @click="isResultDialogOpen = true">
+                        <UIcon name="i-heroicons-eye" />
+                        <span>查看检测结果</span>
+                      </button>
+                    </div>
                   </div>
                 </div>
               </div>
             </div>
           </div>
 
-          <div v-if="result" class="gi-shell" style="gap: 18px;">
-            <div class="gi-result-head">
-              <div>
-                <h2>检测结果</h2>
-                <p>结果来自当前上传图像，你可以继续替换图片并重新发起检测。</p>
-              </div>
+          <div v-if="result && isResultDialogOpen" class="gi-result-modal" @click.self="isResultDialogOpen = false">
+            <div class="gi-result-modal__panel">
+              <button type="button" class="gi-modal-close" aria-label="关闭检测结果" @click="isResultDialogOpen = false">
+                <UIcon name="i-heroicons-x-mark" />
+              </button>
+              <DetectionResultCard :result="result" />
             </div>
-
-            <DetectionResultCard :result="result" />
           </div>
         </div>
       </div>
@@ -94,6 +100,7 @@ import DetectionResultCard from '~/components/glass-inspection/DetectionResultCa
 import type { DetectionResultData } from '~/types/glassInspection'
 
 const maxCount = 1
+const slotTips = ['检测图像']
 const instructions = [
   '支持常见图片格式（JPG、PNG、WEBP）。',
   '建议图片清晰度较高，分辨率不低于 1080p。',
@@ -103,6 +110,7 @@ const instructions = [
 
 const result = ref<DetectionResultData | null>(null)
 const isSubmitting = ref(false)
+const isResultDialogOpen = ref(false)
 
 const {
   files,
@@ -119,11 +127,13 @@ const {
 const handleSelectFile = ({ index, file }: { index: number; file: File }) => {
   setFileAt(index, file)
   result.value = null
+  isResultDialogOpen.value = false
 }
 
 const handleRemoveFile = (index: number) => {
   removeAt(index)
   result.value = null
+  isResultDialogOpen.value = false
 }
 
 const handleDetect = async () => {
@@ -131,6 +141,7 @@ const handleDetect = async () => {
     return
   }
 
+  isResultDialogOpen.value = false
   isSubmitting.value = true
 
   try {
@@ -143,6 +154,7 @@ const handleDetect = async () => {
 
     const uploadFiles = files.value.filter(Boolean) as File[]
     result.value = await detectGlassCrack(email, uploadFiles)
+    isResultDialogOpen.value = false
   } catch (error: any) {
     result.value = {
       status: 'error',
@@ -150,6 +162,7 @@ const handleDetect = async () => {
       description: error?.message || '图片上传或检测过程出现错误，请稍后再试。',
       details: []
     }
+    isResultDialogOpen.value = false
   } finally {
     isSubmitting.value = false
   }

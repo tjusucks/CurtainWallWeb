@@ -1,9 +1,7 @@
 import type { DetectionResultData } from '~/types/glassInspection'
 
-const DEFAULT_GLASS_DETECTION_BASE = 'http://8.153.161.229:8003'
-const LOCAL_GLASS_BACKEND_BASE = 'http://127.0.0.1:8080'
-const REMOTE_GLASS_DETECTION_BASE = 'http://47.102.208.89:8007'
 const RESULT_PATH_PATTERN = /(?:^|[\\/])data[\\/]result(?<suffix>[\\/].+)$/i
+const IMAGE_PATH_PATTERN = /(?:^|[\\/])data[\\/]images?(?<suffix>[\\/].+)$/i
 const PUBLIC_RESULT_PATH_PATTERN = /(?:^|[\\/])results(?<suffix>[\\/].+)$/i
 const PUBLIC_IMAGE_PATH_PATTERN = /(?:^|[\\/])images(?<suffix>[\\/].+)$/i
 
@@ -18,14 +16,6 @@ function toLeadingSlashPath(prefix: '/results' | '/images', suffix: string) {
 
 function ensureLeadingSlash(path: string) {
   return path.startsWith('/') ? path : `/${path}`
-}
-
-function inferMediaBaseURL(path: string) {
-  if (path.startsWith('/results/') || path.startsWith('/images/')) {
-    return LOCAL_GLASS_BACKEND_BASE
-  }
-
-  return REMOTE_GLASS_DETECTION_BASE
 }
 
 export function normalizeInspectionMediaPath(src?: string | null) {
@@ -55,6 +45,11 @@ export function normalizeInspectionMediaPath(src?: string | null) {
     return toLeadingSlashPath('/results', resultMatch.groups.suffix)
   }
 
+  const imageMatch = trimmed.match(IMAGE_PATH_PATTERN)
+  if (imageMatch?.groups?.suffix) {
+    return toLeadingSlashPath('/images', imageMatch.groups.suffix)
+  }
+
   const publicResultMatch = trimmed.match(PUBLIC_RESULT_PATH_PATTERN)
   if (publicResultMatch?.groups?.suffix) {
     return toLeadingSlashPath('/results', publicResultMatch.groups.suffix)
@@ -68,40 +63,47 @@ export function normalizeInspectionMediaPath(src?: string | null) {
   return ensureLeadingSlash(trimmed.replace(/\\/g, '/'))
 }
 
-export function absolutizeInspectionMediaSrc(src?: string | null, baseURL?: string) {
-  if (!src) {
-    return ''
-  }
-
-  const normalized = normalizeInspectionMediaPath(src)
-  if (!normalized) {
-    return ''
-  }
-
-  if (isAbsoluteMediaSrc(normalized)) {
-    return normalized
-  }
-
-  const resolvedBaseURL = (baseURL || inferMediaBaseURL(normalized)).replace(/\/+$/, '')
-  return `${resolvedBaseURL}${ensureLeadingSlash(normalized)}`
-}
-
 export function resolveInspectionMediaSrc(src?: string | null) {
-  return absolutizeInspectionMediaSrc(src)
+  return normalizeInspectionMediaPath(src)
 }
 
-export function absolutizeDetectionResultMedia(
-  result?: DetectionResultData | null,
-  baseURL?: string
-): DetectionResultData | null {
+export function normalizeDetectionResultMedia(result?: DetectionResultData | null): DetectionResultData | null {
   if (!result) {
     return null
   }
 
   return {
     ...result,
-    image: absolutizeInspectionMediaSrc(result.image, baseURL),
+    image: normalizeInspectionMediaPath(result.image),
     details: result.details?.map((detail) => ({
+      ...detail,
+      image: normalizeInspectionMediaPath(detail.image)
+    }))
+  }
+}
+
+export function absolutizeInspectionMediaSrc(src?: string | null, baseURL?: string) {
+  const normalized = normalizeInspectionMediaPath(src)
+  if (!normalized || isAbsoluteMediaSrc(normalized) || !baseURL) {
+    return normalized
+  }
+
+  return `${baseURL.replace(/\/+$/, '')}${ensureLeadingSlash(normalized)}`
+}
+
+export function absolutizeDetectionResultMedia(
+  result?: DetectionResultData | null,
+  baseURL?: string
+): DetectionResultData | null {
+  const normalized = normalizeDetectionResultMedia(result)
+  if (!normalized || !baseURL) {
+    return normalized
+  }
+
+  return {
+    ...normalized,
+    image: absolutizeInspectionMediaSrc(normalized.image, baseURL),
+    details: normalized.details?.map((detail) => ({
       ...detail,
       image: absolutizeInspectionMediaSrc(detail.image, baseURL)
     }))
