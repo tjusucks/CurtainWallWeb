@@ -159,6 +159,10 @@ const MAX_RETRIES = 1 // 最大重试次数
 
 const startDetection = async () => {
   if (!currentImage.value || globalLoading.value) return
+  if (!currentImage.value.serverUrl) {
+    ElMessage.warning('请先选择一张图片再开始检测')
+    return
+  }
   
   try {
     loading.value = true

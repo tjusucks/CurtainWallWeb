@@ -192,6 +192,10 @@ const imageFallbackText = (url, emptyText) => {
 
 const startSeg = async () => {
   if (!picked.value || globalLoading.value) return
+  if (!picked.value.origin) {
+    ElMessage.warning('请先在上方选择一张图片再开始分割')
+    return
+  }
 
   if (picked.value.detected) {
     try {
