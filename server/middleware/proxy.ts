@@ -23,8 +23,7 @@ export default defineEventHandler(async (event) => {
       rewrite: (p: string) => p.replace(/^\/oss/, '') // 去掉前端 /oss 前缀，保留上游 /oss
     },
     '/crackdetection': {
-      // target: 'http://110.42.214.164:8001',
-      target: 'http://127.0.0.1:8080',
+      target: 'http://8.153.161.229:8001',
       rewrite: (p: string) => p.replace(/^\/crackdetection/, '') // 去掉 /crackdetection 前缀
     }
   }

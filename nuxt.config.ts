@@ -43,8 +43,7 @@ export default defineNuxtConfig({
         changeOrigin: true,
       },
       '/crackdetection': {
-        // target: 'http://110.42.214.164:8001',
-        target: 'http://127.0.0.1:8080',
+        target: 'http://8.153.161.229:8001',
         changeOrigin: true,
       }
     }
@@ -61,8 +60,7 @@ export default defineNuxtConfig({
   // 确保环境变量在运行时可用
   runtimeConfig: {
     public: {
-      apiBase: process.env.NUXT_API_BASE_URL,
-      bypassAuth: process.env.NUXT_PUBLIC_BYPASS_AUTH === 'true'
+      apiBase: process.env.NUXT_API_BASE_URL
     }
   },
 

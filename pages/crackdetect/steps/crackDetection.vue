@@ -758,7 +758,7 @@ const handleDualModelDetection = async (index) => {
     const imageUrl = picked.value.segimages[index]?.image_path
     if (!imageUrl) throw new Error('未找到区域图片')
 
-    const response = await axios.post('http://110.42.214.164:8001/crack-detection/region-detect', {
+    const response = await axios.post('/crackdetection/crack-detection/region-detect', {
       url: imageUrl
     })
 

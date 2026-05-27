@@ -607,9 +607,8 @@ const analyzeCrackWithLLM = async (imageIndex) => {
     
     console.log('Calling LLM analyze API with URL:', image.image_path)
     
-    // 调用LLM分析接口
-    // 直接使用完整URL，避免代理问题
-    const response = await axios.post('http://110.42.214.164:8001/llm-analyze', {
+    // 调用LLM分析接口，统一走前端代理入口
+    const response = await axios.post('/crackdetection/llm-analyze', {
       url: image.image_path
     })
     
