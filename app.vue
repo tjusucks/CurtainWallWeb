@@ -46,3 +46,37 @@ useSeoMeta({
 })
 
 </script>
+
+<style>
+.el-image__placeholder {
+  position: relative;
+  display: flex;
+  min-height: 72px;
+  align-items: center;
+  justify-content: center;
+  background: #f5f7fa;
+  color: #909399;
+}
+
+.el-image__placeholder::before {
+  width: 26px;
+  height: 26px;
+  border: 3px solid #dcdfe6;
+  border-top-color: #409eff;
+  border-radius: 50%;
+  content: "";
+  animation: image-loading-spin 0.8s linear infinite;
+}
+
+.el-image__placeholder::after {
+  margin-left: 10px;
+  font-size: 13px;
+  content: "图片加载中";
+}
+
+@keyframes image-loading-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+</style>

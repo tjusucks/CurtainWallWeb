@@ -92,6 +92,7 @@
                 :src="currentImage.image_path"
                 fit="contain"
                 class="preview-image"
+                :preview-src-list="[currentImage.image_path]"
               />
             </div>
 
@@ -102,6 +103,7 @@
                 :src="currentImage.segoverviews[0].image_path"
                 fit="contain"
                 class="seg-overview-image"
+                :preview-src-list="[currentImage.segoverviews[0].image_path]"
               />
               
               <!-- 检测结果网格 -->
@@ -119,6 +121,7 @@
                         :src="seg.image_path"
                         fit="contain"
                         class="small-image"
+                        :preview-src-list="[seg.image_path]"
                       />
                     </div>
                     <div v-if="getDetectionResultGroups(seg.crackimages).standard.segformerUrl" class="detection-image-item">
@@ -127,6 +130,7 @@
                         :src="getDetectionResultGroups(seg.crackimages).standard.segformerUrl"
                         fit="contain"
                         class="small-image"
+                        :preview-src-list="[getDetectionResultGroups(seg.crackimages).standard.segformerUrl]"
                       />
                     </div>
                     <div v-if="getDetectionResultGroups(seg.crackimages).standard.crackDetectionUrl" class="detection-image-item">
@@ -135,6 +139,7 @@
                         :src="getDetectionResultGroups(seg.crackimages).standard.crackDetectionUrl"
                         fit="contain"
                         class="small-image"
+                        :preview-src-list="[getDetectionResultGroups(seg.crackimages).standard.crackDetectionUrl]"
                       />
                     </div>
                     <div v-if="getDetectionResultGroups(seg.crackimages).som.overlayUrl" class="detection-image-item">
@@ -143,6 +148,7 @@
                         :src="getDetectionResultGroups(seg.crackimages).som.overlayUrl"
                         fit="contain"
                         class="small-image"
+                        :preview-src-list="[getDetectionResultGroups(seg.crackimages).som.overlayUrl]"
                       />
                     </div>
                   </div>
@@ -277,7 +283,14 @@
           <div v-for="(image, index) in projectDetails.images" :key="image.image_id" class="image-report-section">
             <h3>图片 {{ index + 1 }}</h3>
             <div class="image-report-content">
-              <el-image :src="image.image_path" fit="contain" class="report-image" />
+              <div class="report-main-image-box">
+                <el-image
+                  :src="image.image_path"
+                  fit="contain"
+                  class="report-image"
+                  :preview-src-list="[image.image_path]"
+                />
+              </div>
               <div class="image-report-text">
                 <p><strong>描述：</strong>{{ imageDataList[index]?.description || '暂无描述' }}</p>
                 <p><strong>裂缝情况：</strong>{{ getCrackStatusText(imageDataList[index]?.crackStatus) }}</p>
@@ -293,7 +306,14 @@
             <!-- 分割和检测结果 -->
             <div v-if="image.segoverviews && image.segoverviews[0]" class="report-detection-results">
               <h4>检测结果详情</h4>
-              <el-image :src="image.segoverviews[0].image_path" fit="contain" class="report-seg-overview" />
+              <div class="report-seg-overview-box">
+                <el-image
+                  :src="image.segoverviews[0].image_path"
+                  fit="contain"
+                  class="report-seg-overview"
+                  :preview-src-list="[image.segoverviews[0].image_path]"
+                />
+              </div>
               
               <div class="report-detection-grid">
                 <div 
@@ -314,6 +334,7 @@
                           :src="slot.url"
                           fit="contain"
                           class="report-slot-image"
+                          :preview-src-list="[slot.url]"
                         />
                       </div>
                     </div>
@@ -865,12 +886,28 @@ onMounted(async () => {
 
 .image-preview {
   margin-bottom: 20px;
-  text-align: center;
+  min-height: 260px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #ebeef5;
+  border-radius: 4px;
+  background: #fafafa;
 }
 
 .preview-image {
-  max-height: 300px;
-  width: auto;
+  width: 100%;
+  height: 300px;
+}
+
+.preview-image :deep(.el-image__inner),
+.seg-overview-image :deep(.el-image__inner),
+.small-image :deep(.el-image__inner),
+.report-image :deep(.el-image__inner),
+.report-seg-overview :deep(.el-image__inner),
+.report-slot-image :deep(.el-image__inner) {
+  object-fit: contain;
+  object-position: center;
 }
 
 :deep(.el-form-item__label) {
@@ -928,10 +965,22 @@ onMounted(async () => {
   align-items: flex-start;
 }
 
-.report-image {
-  width: 300px;
-  height: auto;
+.report-main-image-box {
+  width: 320px;
+  height: 240px;
   flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #ebeef5;
+  border-radius: 4px;
+  background: #fafafa;
+  overflow: hidden;
+}
+
+.report-image {
+  width: 100%;
+  height: 100%;
 }
 
 .image-report-text {
@@ -955,10 +1004,22 @@ onMounted(async () => {
   font-weight: bold;
 }
 
-.report-seg-overview {
-  max-width: 100%;
-  max-height: 300px;
+.report-seg-overview-box {
+  width: 100%;
+  height: 300px;
   margin-bottom: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #ebeef5;
+  border-radius: 4px;
+  background: #fafafa;
+  overflow: hidden;
+}
+
+.report-seg-overview {
+  width: 100%;
+  height: 100%;
 }
 
 .report-detection-grid {
@@ -1004,7 +1065,7 @@ onMounted(async () => {
 }
 
 .report-slot-image-box {
-  height: 120px;
+  height: 150px;
   border: 1px solid #f0f0f0;
   border-radius: 4px;
   overflow: hidden;
@@ -1043,9 +1104,12 @@ onMounted(async () => {
 }
 
 .seg-overview-image {
-  max-height: 300px;
+  height: 300px;
   width: 100%;
   margin-bottom: 20px;
+  border: 1px solid #ebeef5;
+  border-radius: 4px;
+  background: #fafafa;
 }
 
 .detection-grid {
@@ -1086,10 +1150,10 @@ onMounted(async () => {
 
 .small-image {
   width: 100%;
-  height: 100px;
-  object-fit: contain;
+  height: 140px;
   border: 1px solid #eee;
   border-radius: 4px;
+  background: #fafafa;
 }
 
 .llm-analysis-section {

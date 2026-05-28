@@ -12,56 +12,59 @@
              />
         </div>
     </div>
-    <div style="width:65%;height: 100%;">
+    <div class="right-pane">
         <div class="box-title">
             <p>检测结果</p>
-            <div style="display:flex;justify-content:center;align-items:center;gap:8px;">
-              <span style="font-size:12px;color:#606266;">检测模式</span>
-              <el-select v-model="detectionMode" size="small" style="width:160px">
-                <el-option label="标准双模型" value="standard" />
-                <el-option label="SOM 模式" value="som" />
-              </el-select>
+            <div class="detection-toolbar">
+              <div class="mode-row">
+                <span class="toolbar-label">检测模式</span>
+                <el-select v-model="detectionMode" size="small" style="width:160px">
+                  <el-option label="标准双模型" value="standard" />
+                  <el-option label="SOM 模式" value="som" />
+                </el-select>
+              </div>
+              <div v-if="detectionMode === 'som'" class="threshold-row">
+                <span class="toolbar-label">像素阈值</span>
+                <el-input-number
+                  v-model="somThresholds.min_crack_pixels"
+                  :min="1"
+                  :step="1"
+                  :step-strictly="false"
+                  :controls="true"
+                  controls-position="right"
+                  :readonly="false"
+                  size="small"
+                  style="width: 140px;"
+                />
+                <span class="toolbar-label">面积占比阈值</span>
+                <el-input-number
+                  v-model="somThresholds.min_crack_area_ratio"
+                  :min="0"
+                  :max="1"
+                  :step="0.0001"
+                  :precision="4"
+                  :step-strictly="false"
+                  :controls="true"
+                  controls-position="right"
+                  :readonly="false"
+                  size="small"
+                  style="width: 160px;"
+                />
+              </div>
+              <div class="progress-row">
+                <el-progress :percentage="getDetectionProgress()" class="detection-progress" />
+                <el-button 
+                    type="primary" 
+                    @click="startCrackDetection" 
+                    :loading="globalLoading"
+                    :disabled="globalLoading || nums === 0"
+                >
+                    {{ isAllDetectionComplete ? '重新检测' : '开始检测' }}
+                </el-button>
+              </div>
             </div>
-            <div v-if="detectionMode === 'som'" style="position:relative;z-index:2;display:flex;justify-content:center;align-items:center;gap:10px;margin-top:8px;">
-              <span style="font-size:12px;color:#606266;">像素阈值</span>
-              <el-input-number
-                v-model="somThresholds.min_crack_pixels"
-                :min="1"
-                :step="1"
-                :step-strictly="false"
-                :controls="true"
-                controls-position="right"
-                :readonly="false"
-                size="small"
-                style="width: 140px;"
-              />
-              <span style="font-size:12px;color:#606266;">面积占比阈值</span>
-              <el-input-number
-                v-model="somThresholds.min_crack_area_ratio"
-                :min="0"
-                :max="1"
-                :step="0.0001"
-                :precision="4"
-                :step-strictly="false"
-                :controls="true"
-                controls-position="right"
-                :readonly="false"
-                size="small"
-                style="width: 160px;"
-              />
-            </div>
-            <el-progress :percentage="getDetectionProgress()" style="width:50%;margin-left: auto;margin-right: auto;margin-top: 10px;" />
-            <el-button 
-                type="primary" 
-                style="position: absolute;right: 10%;top:55%" 
-                @click="startCrackDetection" 
-                :loading="globalLoading"
-                :disabled="globalLoading || nums === 0"
-            >
-                {{ isAllDetectionComplete ? '重新检测' : '开始检测' }}
-            </el-button>
         </div>
-        <el-scrollbar style="width:100%;height: 82%;">
+        <el-scrollbar class="results-scrollbar">
         <div class="box-content" style="height: 100%;">
             <el-timeline style="width: 90%;height: 100%;">
                 <el-timeline-item 
@@ -70,9 +73,9 @@
                     :timestamp="`区域${index + 1}`"
                     placement="top"
                 >
-                    <el-card style="height: 20vh;">
+                    <el-card class="detection-card">
                         <!-- 在卡片顶部添加裂缝状态 -->
-                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; padding: 5px 0; border-bottom: 1px solid #eee;">
+                        <div class="detection-card-header">
                             <span style="font-weight: bold; font-size: 14px;">区域{{ index + 1 }}检测结果</span>
                             <div style="display: flex; align-items: center; gap: 8px;">
                                 <!-- 检测完成时显示结果标签 -->
@@ -122,28 +125,28 @@
                         </div>
                         
                         <div class="result-card">
-                            <div>
-                                <div style="height: 5%;text-align: center;font-weight: bold">原始图片</div>
+                            <div class="result-column">
+                                <div class="result-image-title">原始图片</div>
                                 <div class="image-container">
                                     <el-image
                                      :src="safeImageSrc(item.image_path)" 
                                      @error="markImageFailed(item.image_path)"
                                      :preview-src-list="[item.image_path]"
                                      fit="contain"
-                                     style="width:80%;height: 80%;" 
+                                     class="result-image"
                                      >
                                      </el-image>
                                 </div>
                             </div>
-                            <div>
-                                <div style="height: 5%;text-align: center;font-weight: bold">{{ getSecondModelTitle() }}</div>
+                            <div class="result-column">
+                                <div class="result-image-title">{{ getSecondModelTitle() }}</div>
                                 <div class="image-container">
                                     <el-image
                                      :src="safeImageSrc(getSecondModelImage(item))" 
                                      @error="markImageFailed(getSecondModelImage(item))"
                                      :preview-src-list="[getSecondModelImage(item)]"
                                      fit="contain"
-                                     style="width:80%;height: 80%;" 
+                                     class="result-image"
                                      >
                                      <template #error>
                                         <div class="image-slot">
@@ -153,15 +156,15 @@
                                      </el-image>
                                 </div>
                             </div>
-                            <div>
-                                <div style="height: 5%;text-align: center;font-weight: bold">{{ getThirdModelTitle() }}</div>
+                            <div class="result-column">
+                                <div class="result-image-title">{{ getThirdModelTitle() }}</div>
                                 <div class="image-container">
                                     <el-image
                                      :src="safeImageSrc(getThirdModelImage(item))" 
                                      @error="markImageFailed(getThirdModelImage(item))"
                                      :preview-src-list="[getThirdModelImage(item)]"
                                      fit="contain"
-                                     style="width:80%;height: 80%;" 
+                                     class="result-image"
                                      >
                                      <template #error>
                                         <div class="image-slot">
@@ -809,11 +812,11 @@ const handleCloseDualModelDialog = () => {
 }
 
 .box-title{
-    height: 15%;
+    flex: 0 0 auto;
     text-align: center;
     color: black;
     font-size: 20px;
-    padding-top: 20px;
+    padding-top: 16px;
     position: relative;
     padding-left: 8px;
     padding-right: 8px;
@@ -821,9 +824,67 @@ const handleCloseDualModelDialog = () => {
     word-break: break-word;
 }
 
+.right-pane {
+  width: 65%;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+.results-scrollbar {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+}
+
+.box-title p {
+  margin: 0 0 8px;
+}
+
+.detection-toolbar {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+}
+
+.mode-row,
+.threshold-row,
+.progress-row {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  min-width: 0;
+}
+
+.threshold-row {
+  flex-wrap: wrap;
+}
+
+.toolbar-label {
+  color: #606266;
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.progress-row {
+  padding: 0 8%;
+  box-sizing: border-box;
+}
+
+.detection-progress {
+  flex: 1;
+  max-width: 520px;
+  min-width: 180px;
+}
+
 .box-content{
     width: 100%;
-    height: 85%;
+    height: 82%;
     display: flex;
     justify-content: center;
     align-items: center;
@@ -832,35 +893,74 @@ const handleCloseDualModelDialog = () => {
 
 .result-card{
     width:100%;
-    height: 100%;
+    min-height: 180px;
     display: grid;
     grid-template-columns: repeat(3, minmax(0, 1fr)); /* 三列布局 */
-    gap: 10px;
+    gap: 14px;
     min-width: 0;
-    overflow: hidden;
+    overflow: visible;
+    align-items: stretch;
+    padding: 0 14px 14px;
+    box-sizing: border-box;
 }
 
-.result-card > div {
+.result-column {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
   min-width: 0;
-  overflow: hidden;
 }
 
-:deep(.el-card__body) {
+.detection-card {
+  width: 100%;
+  overflow: visible;
+}
+
+.detection-card :deep(.el-card__body) {
   padding-right: 0;
   padding-left: 0;
-  padding-top: 3%;
+  padding-top: 12px;
   padding-bottom: 0;
-  height: 100%;
+  overflow: visible;
+}
+
+.detection-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+  padding: 5px 14px;
+  border-bottom: 1px solid #eee;
+  gap: 12px;
+  min-width: 0;
+}
+
+.result-image-title {
+  min-height: 24px;
+  line-height: 24px;
+  text-align: center;
+  font-weight: bold;
+  color: #303133;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .image-container{
     width: 100%;
-    height: 95%;
+    height: 150px;
     display: flex;
     align-items: center;
     justify-content: center;
     overflow: hidden;
     min-width: 0;
+    border-radius: 4px;
+    background: #fafafa;
+}
+
+.result-image {
+  width: 100%;
+  height: 100%;
 }
 
 :deep(.el-timeline-item__node) {
