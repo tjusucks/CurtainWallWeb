@@ -5,7 +5,7 @@
 import { ref } from 'vue'
 import { primeImageList } from '~/composables/useImageCache'
 
-const CORROSION_API_PROXY_BASE = '/api/corrosion'
+const CORROSION_API_PROXY_BASE = '/corrosion-api'
 
 const getAuthHeaders = (): Record<string, string> => {
   if (process.client) {
@@ -116,6 +116,61 @@ const numberOrUndefined = (value: unknown) => {
   return Number.isFinite(n) ? n : undefined
 }
 
+const firstValue = (...values: any[]) => values.find((value) => value !== undefined && value !== null && value !== '')
+
+const normalizeHistoryItem = (item: any): HistoryItem => {
+  const batchNo = firstValue(item.batch_no, item.batchNo, item.batch_id, item.batchId)
+  if (item.type === 'batch' || batchNo) {
+    return {
+      ...item,
+      type: 'batch',
+      batch_no: String(batchNo || item.id || ''),
+      name: firstValue(item.name, item.dataset_name, item.datasetName, item.batch_name, item.batchName, batchNo) || '',
+      status: firstValue(item.status, item.state) || 'pending',
+      total_count: numberOrUndefined(firstValue(item.total_count, item.total_files, item.totalFiles, item.file_count, item.image_count)) ?? 0,
+      processed_count: numberOrUndefined(firstValue(item.processed_count, item.done_count, item.completed_count, item.finished_count)) ?? 0,
+      created_at: firstValue(item.created_at, item.createdAt, item.create_time, item.createTime) || '',
+      thumbnail_urls: item.thumbnail_urls || item.thumbnailUrls || item.thumbnails || [],
+    }
+  }
+
+  return {
+    ...item,
+    type: 'single',
+    job_id: String(firstValue(item.job_id, item.jobId, item.id) || ''),
+    status: firstValue(item.status, item.state) || 'pending',
+    created_at: firstValue(item.created_at, item.createdAt, item.create_time, item.createTime) || '',
+    result_preview: item.result_preview ? normalizeCorrosionMetrics(item.result_preview) : item.resultPreview,
+    input_image: firstValue(item.input_image, item.inputImage, item.input_image_url, item.inputImageUrl),
+    output_image: firstValue(item.output_image, item.outputImage, item.output_image_url, item.outputImageUrl),
+    metrics: item.metrics ? normalizeCorrosionMetrics(item.metrics) : item.metrics,
+    error_msg: firstValue(item.error_msg, item.errorMsg, item.message),
+  }
+}
+
+const normalizeBatchDetails = (raw: any): BatchDetailsResponse => {
+  const batchInfo = raw.batch_info || raw.batchInfo || raw.info || {}
+  return {
+    ...raw,
+    batch_info: {
+      batch_no: String(firstValue(batchInfo.batch_no, batchInfo.batchNo, raw.batch_no, raw.batchNo) || ''),
+      name: firstValue(batchInfo.name, batchInfo.dataset_name, batchInfo.datasetName, raw.name) || '',
+      progress: String(firstValue(batchInfo.progress, raw.progress) || ''),
+      status: firstValue(batchInfo.status, raw.status) || 'pending',
+      created_at: firstValue(batchInfo.created_at, batchInfo.createdAt, raw.created_at, raw.createdAt),
+    },
+    tasks: (raw.tasks || raw.list || raw.items || []).map((task: any) => ({
+      ...task,
+      job_id: String(firstValue(task.job_id, task.jobId, task.id) || ''),
+      input_image: firstValue(task.input_image, task.inputImage, task.input_image_url, task.inputImageUrl) || '',
+      output_image: firstValue(task.output_image, task.outputImage, task.output_image_url, task.outputImageUrl),
+      status: firstValue(task.status, task.state) || 'pending',
+      metrics: task.metrics ? normalizeCorrosionMetrics(task.metrics) : task.metrics,
+      error_msg: firstValue(task.error_msg, task.errorMsg, task.message),
+    })),
+  }
+}
+
 export const normalizeCorrosionMetrics = (raw?: any): DetectionMetrics => {
   const m = raw || {}
   const corrosionCount = numberOrUndefined(m.corrosion_count)
@@ -153,6 +208,14 @@ const getImageUrl = (path?: string) => {
   let normalizedPath = path.replace(/\\/g, '/')
   if (!normalizedPath.startsWith('/')) normalizedPath = '/' + normalizedPath
   return `${baseUrl}${normalizedPath}`
+}
+
+const getResultImageUrl = (result: any) => {
+  const base64 = result?.image_base64
+  if (base64) {
+    return String(base64).startsWith('data:') ? String(base64) : `data:image/png;base64,${base64}`
+  }
+  return getImageUrl(result?.output_image || result?.outputImage || result?.output_image_url || result?.outputImageUrl)
 }
 
 const isTerminalStatus = (status?: string) => ['done', 'error'].includes(status || '')
@@ -211,9 +274,7 @@ export function useCorrosion() {
   const handleResult = (data: any, inputUrl: string, filename: string, taskId?: string, batchId?: string) => {
     if (!data) return
     const result = data.result || data.data || data
-    const outputUrl = result.image_base64
-      ? `data:image/png;base64,${result.image_base64}`
-      : getImageUrl(result.output_image || result.output_image_url)
+    const outputUrl = getResultImageUrl(result)
     const met = normalizeCorrosionMetrics(result.metrics)
 
     previewSrc.value = outputUrl
@@ -245,6 +306,65 @@ export function useCorrosion() {
     })
   }
 
+  const handleBatchDetectResult = (data: any, inputUrls: Record<string, string>, fallbackBatchId: string, batchOrder: number) => {
+    const batchInfo = data?.batch_info || data?.batchInfo || {}
+    const taskList = data?.tasks || []
+    const batchNo = String(firstValue(batchInfo.batch_no, batchInfo.batchNo, fallbackBatchId))
+
+    currentBatchId.value = batchNo
+    progressText.value = `批量检测完成 (${firstValue(batchInfo.progress, `${taskList.length}/${taskList.length}`)})`
+
+    taskList.forEach((rawTask: any, index: number) => {
+      const jobId = String(firstValue(rawTask.job_id, rawTask.jobId, rawTask.id, `${batchNo}-${index}`))
+      const inputPath = firstValue(rawTask.input_image, rawTask.inputImage, rawTask.input_image_url, rawTask.inputImageUrl)
+      const filename = inputPath ? String(inputPath).split(/[/\\]/).pop() || jobId : files.value[index]?.name || jobId
+      const taskStatus = firstValue(rawTask.status, rawTask.state, 'done')
+      const met = normalizeCorrosionMetrics(rawTask.metrics)
+      const inputUrl = inputUrls[filename] || getImageUrl(inputPath) || (files.value[index] ? URL.createObjectURL(files.value[index]) : '')
+      const outputUrl = getResultImageUrl(rawTask)
+
+      const existingTask = tasks.value.find((x) => x.id === jobId)
+      if (existingTask) {
+        existingTask.status = taskStatus
+        existingTask.metrics = met
+        existingTask.message = rawTask.error_msg || rawTask.errorMsg || (taskStatus === 'done' ? '完成' : '处理中')
+      } else {
+        tasks.value.unshift({
+          id: jobId,
+          filename,
+          mode: 'batch',
+          status: taskStatus,
+          batchId: batchNo,
+          batchOrder,
+          metrics: met,
+          message: rawTask.error_msg || rawTask.errorMsg,
+        })
+      }
+
+      if (taskStatus === 'done' && outputUrl && !gallery.value.find((g) => g.id === jobId)) {
+        if (!previewSrc.value) {
+          previewSrc.value = outputUrl
+          inputPreviewSrc.value = inputUrl
+          metrics.value = met
+        }
+        void primeImageList([inputUrl, outputUrl])
+        gallery.value.unshift({
+          id: jobId,
+          input: inputUrl,
+          output: outputUrl,
+          metrics: met,
+          filename,
+          batchId: batchNo,
+          batchOrder,
+        })
+      }
+    })
+
+    const doneCount = numberOrUndefined(firstValue(batchInfo.processed_count, batchInfo.processedCount)) ?? taskList.length
+    const totalCount = numberOrUndefined(firstValue(batchInfo.total_files, batchInfo.totalFiles)) ?? files.value.length
+    pushLog(`批量检测成功: ${batchNo}, ${doneCount}/${totalCount}`)
+  }
+
   const startDetect = async () => {
     if (!files.value.length) return
     busy.value = true
@@ -254,6 +374,35 @@ export function useCorrosion() {
       batchSeq.value += 1
       const batchOrder = batchSeq.value
       currentBatchId.value = batchId
+
+      if (files.value.length > 1) {
+        previewSrc.value = ''
+        metrics.value = {}
+        const form = new FormData()
+        const inputUrls: Record<string, string> = {}
+        files.value.forEach((file) => {
+          inputUrls[file.name] = URL.createObjectURL(file)
+          form.append('files', file)
+        })
+        form.append('dataset_name', `Dataset ${batchId}`)
+
+        const res = await $fetch<any>(`${getCorrosionApiBase()}/detect`, {
+          method: 'POST',
+          body: form,
+          headers: getAuthHeaders(),
+          credentials: 'include',
+        })
+
+        if (res?.success && res?.data) {
+          handleBatchDetectResult(res.data, inputUrls, batchId, batchOrder)
+        } else {
+          const errorMsg = res?.message || '批量检测失败'
+          progressText.value = errorMsg
+          pushLog(`批量检测失败: ${errorMsg}`)
+        }
+        return
+      }
+
       let done = 0
 
       for (const file of files.value) {
@@ -460,11 +609,7 @@ export function useCorrosion() {
       })
 
       if (res?.success && res?.data) {
-        historyList.value = (res.data.list || []).map((item: any) => ({
-          ...item,
-          result_preview: item.result_preview ? normalizeCorrosionMetrics(item.result_preview) : item.result_preview,
-          metrics: item.metrics ? normalizeCorrosionMetrics(item.metrics) : item.metrics,
-        }))
+        historyList.value = (res.data.list || res.data.items || res.data.records || []).map(normalizeHistoryItem)
         void primeImageList(
           historyList.value.flatMap((item: any) => {
             if (item.type === 'batch') {
@@ -499,13 +644,7 @@ export function useCorrosion() {
       })
 
       if (res?.success && res?.data) {
-        batchDetails.value = {
-          ...res.data,
-          tasks: (res.data.tasks || []).map((task: any) => ({
-            ...task,
-            metrics: task.metrics ? normalizeCorrosionMetrics(task.metrics) : task.metrics,
-          })),
-        }
+        batchDetails.value = normalizeBatchDetails(res.data)
         void primeImageList(
           batchDetails.value.tasks.flatMap((task: any) => [
             getImageUrl(task.input_image),

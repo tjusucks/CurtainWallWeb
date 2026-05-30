@@ -61,9 +61,7 @@
               <span v-if="item.type === 'batch'">
                 进度: {{ item.processed_count }} / {{ item.total_count }}
               </span>
-              <span v-else>
-                总数量: {{ item.result_preview?.total_count ?? item.result_preview?.count ?? '-' }}
-              </span>
+              <span v-else>单图检测</span>
               <span class="item-date">{{ formatDate(item.created_at) }}</span>
             </div>
           </div>
@@ -245,7 +243,7 @@ import { ref, onMounted } from 'vue'
 import { normalizeCorrosionMetrics, useCorrosion } from '~/composables/useCorrosion'
 import { primeImageList } from '~/composables/useImageCache'
 
-const CORROSION_API_PROXY_BASE = '/api/corrosion'
+const CORROSION_API_PROXY_BASE = '/corrosion-api'
 
 const { 
   historyList, 
@@ -366,16 +364,19 @@ const fetchSingleDetails = async (jobId: string) => {
   showSingleDetails.value = true
   try {
     console.log('[单次检测] 请求任务详情 API:', jobId)
-    const res = await $fetch<any>(`${getCorrosionApiBase()}/jobs/${jobId}`, {
+    const res = await $fetch<any>(`${getCorrosionApiBase()}/history/single/${jobId}`, {
       headers: getAuthHeaders(),
       credentials: 'include'
     })
     
     console.log('[单次检测] API 响应:', res)
     
-    if (res?.status === 'done' && res?.result) {
+    const detail = res?.data || res?.result || res
+    const detailStatus = detail?.status || res?.status
+    
+    if ((detailStatus === 'done' || detailStatus === 'completed') && detail) {
       // 处理成功的检测结果
-      const result = res.result
+      const result = detail.result || detail
       
       // 构建输入图片 URL（从历史记录或 gallery 中获取）
       const historyItem = historyList.value.find((x: any) => x.type === 'single' && x.job_id === jobId)
@@ -394,11 +395,11 @@ const fetchSingleDetails = async (jobId: string) => {
         : undefined
       
       singleDetails.value = {
-        job_id: res.job_id,
-        status: 'done',
-        created_at: historyItem?.created_at || new Date().toISOString(),
-        input_image: inputImageUrl,
-        output_image: outputImageUrl,
+        job_id: result.job_id || detail.job_id || jobId,
+        status: detailStatus,
+        created_at: result.created_at || detail.created_at || historyItem?.created_at || new Date().toISOString(),
+        input_image: inputImageUrl || result.input_image || result.inputImage,
+        output_image: outputImageUrl || result.output_image || result.outputImage || result.output_image_url || result.outputImageUrl,
         metrics: normalizeCorrosionMetrics(result.metrics),
         error_msg: undefined
       }
@@ -407,25 +408,25 @@ const fetchSingleDetails = async (jobId: string) => {
         getImageUrl(singleDetails.value.output_image)
       ])
       console.log('[单次检测] ✅ 成功获取任务结果')
-    } else if (res?.status === 'error') {
+    } else if (detailStatus === 'error') {
       // 处理失败的任务
       const historyItem = historyList.value.find((x: any) => x.type === 'single' && x.job_id === jobId)
       singleDetails.value = {
-        job_id: res.job_id,
+        job_id: detail?.job_id || jobId,
         status: 'error',
         created_at: historyItem?.created_at || new Date().toISOString(),
-        input_image: undefined,
-        output_image: undefined,
-        metrics: undefined,
-        error_msg: res.message || '检测失败'
+        input_image: detail?.input_image || detail?.inputImage,
+        output_image: detail?.output_image || detail?.outputImage,
+        metrics: detail?.metrics ? normalizeCorrosionMetrics(detail.metrics) : undefined,
+        error_msg: detail?.error_msg || detail?.message || '检测失败'
       }
-      console.log('[单次检测] ⚠️ 任务执行失败:', res.message)
-    } else if (res?.status === 'running' || res?.status === 'queued') {
+      console.log('[单次检测] ⚠️ 任务执行失败:', detail?.message)
+    } else if (detailStatus === 'running' || detailStatus === 'queued' || detailStatus === 'pending') {
       // 任务还在处理中
       const historyItem = historyList.value.find((x: any) => x.type === 'single' && x.job_id === jobId)
       singleDetails.value = {
-        job_id: res.job_id,
-        status: res.status,
+        job_id: detail?.job_id || jobId,
+        status: detailStatus,
         created_at: historyItem?.created_at || new Date().toISOString(),
         input_image: undefined,
         output_image: undefined,
