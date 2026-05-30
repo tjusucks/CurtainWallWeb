@@ -5,7 +5,7 @@
  * 输出内容: JSON { success: boolean; data?: { job_id, model, status, created_at, input_image, output_image, metrics } }
  * 备注: 查看单次检测的详细信息
  */
-import { defineEventHandler, getRouterParam, createError, getCookie } from 'h3'
+import { defineEventHandler, getRouterParam, createError, getCookie, getHeader } from 'h3'
 
 const readToken = (event: any) => {
   const auth = event.node.req.headers['authorization'] || ''

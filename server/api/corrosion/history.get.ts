@@ -5,7 +5,7 @@
  * 输出内容: JSON { success: boolean; data?: { page: number; total: number; list: Array<HistoryItem> } }
  * 备注: 支持分页和类型筛选（single/batch/all）
  */
-import { defineEventHandler, getQuery, createError, getCookie } from 'h3'
+import { defineEventHandler, getQuery, createError, getCookie, getHeader } from 'h3'
 
 const readToken = (event: any) => {
   const auth = event.node.req.headers['authorization'] || ''

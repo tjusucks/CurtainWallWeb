@@ -5,7 +5,7 @@
  * 输出内容: JSON { success: boolean; data?: { batch_info: {...}, tasks: [...] } }
  * 备注: 查看批次下所有图片的检测结果
  */
-import { defineEventHandler, getQuery, getRouterParam, createError, getCookie } from 'h3'
+import { defineEventHandler, getQuery, getRouterParam, createError, getCookie, getHeader } from 'h3'
 
 const readToken = (event: any) => {
   const auth = event.node.req.headers['authorization'] || ''
