@@ -727,7 +727,7 @@ const overviewChartRef = ref<HTMLDivElement | null>(null);
 let overviewChart: echarts.ECharts | null = null;
 const loadingOverview = ref(false);
 const overviewTypeOptions: Array<{ value: DeviceType; label: string; hint: string }> = [
-  { value: 'accelerometer', label: '加速度计', hint: '单位为 g' },
+  { value: 'accelerometer', label: '加速度计', hint: '单位为 gal' },
   { value: 'strainGauge', label: '应力计', hint: '单位为 με' },
 ];
 const activeOverviewType = ref<DeviceType>('accelerometer');
