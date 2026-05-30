@@ -746,10 +746,73 @@ const isDetectionComplete = (index) => {
   return Boolean(first && second)
 }
 
-// 废案方法（已停用）：
-// const openAIAnalysis = async () => {}
-// const handleCloseDialog = () => {}
-// const formatMarkdown = (text) => text
+const DEFAULT_LLM_MODEL = 'hybrid-default'
+
+// AI分析相关方法
+const openAIAnalysis = async (segmentIndex) => {
+  try {
+    currentAnalysisIndex.value = segmentIndex
+    analysisDialogVisible.value = true
+    analysisLoading.value = true
+    analysisResult.value = null
+    analysisError.value = null
+    
+    // 获取crack-detection模型的检测结果图片URL
+    const crackImageUrl = picked.value.segimages[segmentIndex].crackimages[1] // CrackDetection模型结果
+    
+    if (!crackImageUrl) {
+      throw new Error('未找到检测结果图片')
+    }
+    
+    // 调用LLM分析API
+    const response = await axios.post('http://110.42.214.164:8001/llm-analyze', null, {
+      params: {
+        url: crackImageUrl,
+        model: DEFAULT_LLM_MODEL
+      }
+    })
+    
+    if (response.data.success) {
+      analysisResult.value = response.data
+    } else {
+      throw new Error('分析失败')
+    }
+    
+  } catch (error) {
+    console.error('AI分析失败:', error)
+    analysisError.value = error.message || '分析失败，请稍后重试'
+    ElMessage.error('AI分析失败: ' + (error.message || '请稍后重试'))
+  } finally {
+    analysisLoading.value = false
+  }
+}
+
+const handleCloseDialog = () => {
+  analysisDialogVisible.value = false
+  analysisResult.value = null
+  analysisError.value = null
+  currentAnalysisIndex.value = -1
+}
+
+// 格式化Markdown文本为HTML
+const formatMarkdown = (text) => {
+  if (!text) return ''
+  
+  // 简单的Markdown转HTML处理
+  return text
+    .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>') // 粗体
+    .replace(/\*(.*?)\*/g, '<em>$1</em>') // 斜体
+    .replace(/\n\n/g, '</p><p>') // 段落
+    .replace(/\n/g, '<br>') // 换行
+    .replace(/^/, '<p>') // 开始段落
+    .replace(/$/, '</p>') // 结束段落
+    .replace(/- (.*?)(<br>|<\/p>)/g, '<li>$1</li>') // 列表项 - 修复：转义 </p>
+    .replace(/(<li>.*?<\/li>)/g, '<ul>$1</ul>') // 包装列表 - 修复：转义 </li>
+}
+
+// 在 formatMarkdown 函数前添加以下方法
+
+// 双模型协同检测方法
 const handleDualModelDetection = async (index) => {
   try {
     currentDualModelIndex.value = index

@@ -1,7 +1,7 @@
 import { reactive } from 'vue'
 
 export const userState = reactive({
-  name: localStorage.getItem("email") || "",
+  name: "",
   email: "admin@tongji.edu.cn",
   username: "Admin",
   avatar: "",

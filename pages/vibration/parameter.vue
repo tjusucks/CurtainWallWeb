@@ -1,1056 +1,1797 @@
 <template>
-  <div id="app" class="app-container">
-    <div style="position: fixed; right: 10px; top: 15px; z-index: 1000;">
+  <div class="page-shell">
+    <div class="top-action">
       <el-button type="primary" @click="backToMain">返回主页</el-button>
     </div>
 
-    <!-- 主体内容 -->
-    <div class="outlayer">
-      <!-- 参数面板 -->
-      <div class="parameter-panel">
-        <UForm class="parameter-form" :state="{}">
+    <UForm :state="formState" class="page-body">
+      <!-- 一键预警阈值设置面板 -->
+      <section class="panel weather-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow weather-eyebrow">气象驱动</p>
+            <h2>一键预警阈值设置</h2>
+          </div>
+          <div class="status-chip weather-status-chip">
+            定时任务状态
+            <strong>{{ schedulerConfig.isRunning ? '运行中' : '未运行' }}</strong>
+          </div>
+        </div>
 
-          <div class="parameter-group">
-            <h2 class="green-underline-title">台阵选择</h2>
-            <hr class="divider" />
-
-            <!-- 建筑物选择网格 -->
-            <div class="building-grid">
-              <div class="building-group">
-                <h3>衷和楼</h3>
-                <div class="device-grid">
-                  <div
-                    v-for="device in filteredDevices('衷和楼')"
-                    :key="device.value"
-                    class="device-item"
-                    :class="{ 'active': selectedDevice.value === device.value,
-                      'strain-gauge': device.type === 'strainGauge'
-                    }"
-
-                    @click="selectDevice(device)"
-                  >
-                    {{ device.label }}
-                  </div>
-                </div>
-              </div>
-
-              <div class="building-group">
-                <h3>安楼</h3>
-                <div class="device-grid">
-                  <div
-                    v-for="device in filteredDevices('安楼')"
-                    :key="device.value"
-                    class="device-item"
-                    :class="{
-                      'active': selectedDevice.value === device.value,
-                      'strain-gauge': device.type === 'strainGauge'
-                    }"
-                    @click="selectDevice(device)"
-                  >
-                    {{ device.label }}
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            <div class="parameter-row" style="margin-top: 10px;">
-              <div class="parameter-icon">
-                <i class="fas fa-info-circle"></i>
-              </div>
-              <h1>当前选择：</h1>
-              <span class="selected-device-info">{{ selectedDevice.label }}</span>
-              <span class="device-type-badge" :class="selectedDevice.type === 'accelerometer' ? 'acc-badge' : 'strain-badge'">
-                {{ selectedDevice.type === 'accelerometer' ? '加速度计' : '应变计' }}
+        <!-- ── Wind Visual Panel ── -->
+        <div class="wind-visual-grid">
+          <!-- Wind Speed Gauge -->
+          <div class="wind-gauge-card">
+            <p class="gauge-eyebrow">实时风速</p>
+            <div ref="windGaugeRef" class="gauge-canvas"></div>
+            <div class="gauge-badge-row">
+              <span
+                class="beaufort-badge"
+                :style="{
+                  background: windBeaufort.color + '22',
+                  color: windBeaufort.color,
+                  border: `1px solid ${windBeaufort.color}55`
+                }"
+              >
+                蒲福 {{ windBeaufort.level }} 级 · {{ windBeaufort.label }}
               </span>
             </div>
           </div>
 
-          <div class="parameter-group">
-            <h2 class="green-underline-title">偏移与阈值</h2>
-            <hr class="divider" />
-
-            <div v-if="selectedDevice.type === 'accelerometer'">
-              <div class="parameter-row">
-                <div class="parameter-icon">
-                  <i class="fas fa-arrows-alt-h"></i>
-                </div>
-                <h1>X偏移：</h1>
-                <UInput v-model="xOffset" @input="updateThresholds('x', xOffset)" />
-                <span>阈值:</span>
-                <UInput v-model="xThreshold" @input="updateThresholds('xThreshold', $event.target.value)" />
-                <i class="fas fa-exclamation-circle" title="X轴阈值"></i>
-              </div>
-
-              <div class="parameter-row">
-                <div class="parameter-icon">
-                  <i class="fas fa-arrows-alt-v"></i>
-                </div>
-                <h1>Y偏移：</h1>
-                <UInput v-model="yOffset" @input="updateThresholds('y', yOffset)" />
-                <span>阈值:</span>
-                <UInput v-model="yThreshold" @input="updateThresholds('yThreshold', $event.target.value)" />
-                <i class="fas fa-exclamation-circle" title="Y轴阈值"></i>
-              </div>
-
-              <div class="parameter-row">
-                <div class="parameter-icon">
-                  <i class="fas fa-cube"></i>
-                </div>
-                <h1>Z偏移：</h1>
-                <UInput v-model="zOffset" @input="updateThresholds('z', zOffset)" />
-                <span>阈值:</span>
-                <UInput v-model="zThreshold" @input="updateThresholds('zThreshold', $event.target.value)" />
-                <i class="fas fa-exclamation-circle" title="Z轴阈值"></i>
-              </div>
+          <!-- Wind Info Stack -->
+          <div class="wind-info-stack">
+            <div class="wind-info-row">
+              <span>数据来源</span>
+              <strong>NASA 小时级风速数据</strong>
             </div>
-
-            <div v-else-if="selectedDevice.type === 'strainGauge'">
-              <div class="parameter-row">
-                <div class="parameter-icon">
-                  <i class="fas fa-cube"></i>
-                </div>
-                <h1>Ch1偏移：</h1>
-                <UInput v-model="ch1Offset" @input="updateThresholds('ch1', ch1Offset)" />
-                <span>阈值:</span>
-                <UInput v-model="ch1Threshold" @input="updateThresholds('ch1Threshold', ch1Threshold)" />
-                <i class="fas fa-exclamation-circle" title="Ch1轴阈值"></i>
-              </div>
-
-              <div class="parameter-row">
-                <div class="parameter-icon">
-                  <i class="fas fa-cube"></i>
-                </div>
-                <h1>Ch2偏移：</h1>
-                <UInput v-model="ch2Offset" @input="updateThresholds('ch2', ch2Offset)" />
-                <span>阈值:</span>
-                <UInput v-model="ch2Threshold" @input="updateThresholds('ch2Threshold', ch2Threshold)" />
-                <i class="fas fa-exclamation-circle" title="Ch2轴阈值"></i>
-              </div>
+            <div class="wind-info-row">
+              <span>当前风速</span>
+              <strong :style="{ color: windBeaufort.color }">
+                {{ weatherData.wind_speed_ms !== null ? weatherData.wind_speed_ms + ' m/s' : '--' }}
+              </strong>
             </div>
-
-            <!-- 数据校准应用按钮 -->
-            <div class="parameter-row">
-              <UButton type="primary" @click="applyCalibration" :loading="loadingCalibration">应用</UButton>
+            <div class="wind-info-row">
+              <span>所属风速区间</span>
+              <strong>{{ weatherData.wind_bin || '未识别' }}</strong>
+            </div>
+            <div class="wind-info-row">
+              <span>蒲福风力等级</span>
+              <strong>{{ windBeaufort.level }} 级（{{ windBeaufort.label }}）</strong>
             </div>
           </div>
+        </div>
 
-          <!-- 限值设置 -->
-          <div class="parameter-group">
-            <h2 class="green-underline-title">限值设置</h2>
-            <hr class="divider" />
-            <div class="parameter-row">
-              <div class="parameter-icon">
-                <i class="fas fa-envelope"></i>
-              </div>
-              <h1>邮箱红线设置：</h1>
-              <UInput v-model="emailLimitSetting" />
+        <div class="note-card weather-note-card">
+          执行“一键刷新预警阈值”时，系统将按后端规则文件和当前气象数据自动更新各设备预警阈值，定时任务将同一流程自动化。
+        </div>
+
+        <div class="weather-action-layout">
+          <div class="weather-action-card">
+            <h3>立即执行</h3>
+            <p>手动触发一次阈值刷新，执行结果以接口返回为准。</p>
+            <el-button type="primary" size="large" @click="applyWeatherRulesNow" :loading="isApplying">
+              <div class="i-heroicons-bolt mr-2 w-5 h-5"></div> 一键刷新预警阈值
+            </el-button>
+          </div>
+          
+          <div class="schedule-card">
+            <h3>定时任务配置</h3>
+            <el-radio-group v-model="schedulerConfig.type">
+              <el-radio label="interval">间隔定时任务</el-radio>
+              <el-radio label="cron">每日定时任务</el-radio>
+            </el-radio-group>
+
+            <div v-if="schedulerConfig.type === 'interval'" class="schedule-row">
+              <span>每隔</span>
+              <el-input-number v-model="schedulerConfig.minutes" :min="10" :max="1440" />
+              <span>分钟执行一次预警阈值刷新。</span>
+            </div>
+            
+            <div v-if="schedulerConfig.type === 'cron'" class="schedule-row">
+              <span>每天</span>
+              <el-time-picker v-model="schedulerConfig.cronTime" format="HH:mm" placeholder="选择时间" />
+              <span>执行一次预警阈值刷新。</span>
             </div>
 
-            <div class="parameter-row">
-              <div class="parameter-icon">
-                <i class="fas fa-sms"></i>
-              </div>
-              <h1>短信红线设置：</h1>
-              <UInput v-model="messageLimitSetting" />
-            </div>
-
-            <!-- 限值设置应用按钮 -->
-            <div class="parameter-row">
-              <UButton type="primary" @click="applyLimits" :loading="loadingLimits">应用</UButton>
+            <div class="schedule-actions">
+              <el-button type="success" @click="saveSchedule">保存并启动定时任务</el-button>
+              <el-button type="danger" @click="stopSchedule" v-if="schedulerConfig.isRunning">停止定时任务</el-button>
             </div>
           </div>
-        </UForm>
-      </div>
-    </div>
+        </div>
+      </section>
 
-    <!-- 消息提示通过 ElMessage 函数显示，不需要模板 -->
+      <!-- 全传感器阈值总览 -->
+      <section class="panel overview-panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow overview-eyebrow">阈值总览</p>
+            <h2>全传感器阈值总览</h2>
+          </div>
+          <div class="overview-header-right">
+            <span
+              class="overview-loaded-tag"
+              :class="{ 'all-loaded': activeOverviewLoadedCount === activeOverviewDevices.length }"
+            >
+              当前视图已加载 {{ activeOverviewLoadedCount }} / {{ activeOverviewDevices.length }}
+            </span>
+            <UButton size="sm" color="primary" :loading="loadingOverview" @click="fetchAllThresholds">
+              加载全部传感器阈值
+            </UButton>
+          </div>
+        </div>
+
+        <div class="overview-toolbar">
+          <div class="overview-type-switch" role="tablist" aria-label="传感器类型切换">
+            <button
+              v-for="option in overviewTypeOptions"
+              :key="option.value"
+              type="button"
+              class="overview-type-button"
+              :class="{ active: activeOverviewType === option.value }"
+              :aria-pressed="activeOverviewType === option.value"
+              @click="activeOverviewType = option.value"
+            >
+              <span>{{ option.label }}</span>
+              <small>{{ option.hint }}</small>
+            </button>
+          </div>
+      
+        </div>
+
+        <div class="overview-legend">
+          <template v-for="item in activeOverviewLegendItems" :key="item.label">
+            <span class="legend-dot" :style="{ background: item.color }"></span><span>{{ item.label }}</span>
+          </template>
+        </div>
+
+        <div v-if="overviewLoadedCount === 0 && !loadingOverview" class="overview-empty">
+          <p>点击「加载全部传感器阈值」后，可按设备类型查看各通道的上下限范围，竖线为中心偏移量。</p>
+        </div>
+        <div v-else-if="loadingOverview && overviewLoadedCount === 0" class="overview-loading">
+          <span>加载中，正在批量拉取各传感器阈值……</span>
+        </div>
+        <div v-else-if="activeOverviewRows.length === 0" class="overview-empty">
+          <p>当前暂无{{ activeOverviewLabel }}阈值数据，请检查对应设备是否加载成功。</p>
+        </div>
+
+        <div v-else ref="overviewChartRef" class="overview-chart-canvas"></div>
+
+        <div class="overview-status-grid" v-if="activeOverviewHasAnyStatus || loadingOverview">
+          <div
+            v-for="device in activeOverviewDevices"
+            :key="device.value"
+            class="overview-status-item"
+            :class="{
+              'st-loaded':  overviewSnapshots[device.value]?.loaded,
+              'st-error':   overviewSnapshots[device.value]?.error,
+              'st-loading': overviewSnapshots[device.value]?.loading,
+            }"
+          >
+            <span class="st-dot"></span>
+            <span>{{ device.label }}</span>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-heading">
+          <div>
+            <p class="eyebrow">设备工作区</p>
+            <h1>选择设备进入二级设置界面</h1>
+          </div>
+          <div class="status-chip workspace-status-chip">
+            
+            <strong>人工进行逐设备设置</strong>
+          </div>
+        </div>
+
+        <div class="note-card workspace-note-card">
+          从这里选择要设定阈值的设备进入独立的阈值工作区。
+        </div>
+
+        <div class="building-grid">
+          <article v-for="building in buildingNames" :key="building" class="building-card">
+            <h2>{{ building }}</h2>
+            <div class="device-grid">
+              <button
+                v-for="device in devicesByBuilding(building)"
+                :key="device.value"
+                type="button"
+                class="device-button"
+                :class="{ strain: device.type === 'strainGauge' }"
+                @click="openDeviceDetail(device)"
+              >
+                <span>{{ device.label }}</span>
+                <small>{{ device.type === 'accelerometer' ? '加速度计' : '应变计' }}</small>
+                <em class="device-action">打开设备阈值工作区</em>
+              </button>
+            </div>
+          </article>
+        </div>
+
+       
+      </section>
+
+      
+    </UForm>
   </div>
 </template>
 
+<script setup lang="ts">
+import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from "vue";
+import { useRouter } from "vue-router";
+import axios from "axios";
+import * as echarts from 'echarts';
+import { ElMessage } from "element-plus";
 
-<script>
-import {useRouter} from "vue-router";
-import { ElMessage } from 'element-plus';
-import axios from 'axios';
+const API_BASE_URL = "http://8.153.161.229:8009";
+const router = useRouter();
+const formState = reactive({});
 
-const API_BASE_URL = 'http://8.153.161.229:8009';
+type DeviceType = "accelerometer" | "strainGauge";
+type ChannelKey = "x" | "y" | "z" | "ch1" | "ch2";
+
+interface DeviceOption {
+  value: string;
+  label: string;
+  building: string;
+  type: DeviceType;
+}
+
+interface ChannelDefinition {
+  key: ChannelKey;
+  label: string;
+  description: string;
+}
+
+interface LimitState {
+  upper: number;
+  lower: number;
+  offset: number;
+  threshold: number;
+}
+
+interface ManualLimitState {
+  upper: number | string;
+  lower: number | string;
+}
+
+const deviceOptions: DeviceOption[] = [
+  { value: "衷和楼#1G", label: "衷和楼#1G", building: "衷和楼", type: "accelerometer" },
+  { value: "衷和楼#1H", label: "衷和楼#1H", building: "衷和楼", type: "accelerometer" },
+  { value: "衷和楼#2I", label: "衷和楼#2I", building: "衷和楼", type: "accelerometer" },
+  { value: "衷和楼#2J", label: "衷和楼#2J", building: "衷和楼", type: "accelerometer" },
+  { value: "衷和楼测点7", label: "衷和楼测点7", building: "衷和楼", type: "accelerometer" },
+  { value: "衷和楼#2Y", label: "衷和楼#2Y", building: "衷和楼", type: "strainGauge" },
+  { value: "安楼外幕墙1A", label: "安楼外幕墙1A", building: "安楼", type: "accelerometer" },
+  { value: "安楼外幕墙1B", label: "安楼外幕墙1B", building: "安楼", type: "accelerometer" },
+  { value: "安楼外幕墙1C", label: "安楼外幕墙1C", building: "安楼", type: "accelerometer" },
+  { value: "安楼外幕墙2D", label: "安楼外幕墙2D", building: "安楼", type: "accelerometer" },
+  { value: "安楼外幕墙2E", label: "安楼外幕墙2E", building: "安楼", type: "accelerometer" },
+  { value: "安楼外幕墙2F", label: "安楼外幕墙2F", building: "安楼", type: "accelerometer" },
+  { value: "安楼外幕墙2Y", label: "安楼外幕墙2Y", building: "安楼", type: "strainGauge" },
+];
+
+const channelDefinitions: Record<ChannelKey, ChannelDefinition> = {
+  x: { key: "x", label: "X 轴", description: "加速度计 X 轴通道的当前上下限与人工设置。" },
+  y: { key: "y", label: "Y 轴", description: "加速度计 Y 轴通道的当前上下限与人工设置。" },
+  z: { key: "z", label: "Z 轴", description: "加速度计 Z 轴通道的当前上下限与人工设置。" },
+  ch1: { key: "ch1", label: "Ch1", description: "应变计 Channel 1 的当前上下限与人工设置。" },
+  ch2: { key: "ch2", label: "Ch2", description: "应变计 Channel 2 的当前上下限与人工设置。" },
+};
+
+const buildingNames = ["衷和楼", "安楼"];
+const selectedDevice = ref<DeviceOption>(deviceOptions[0]);
+const loadingFetch = ref(false);
+const loadingCalibration = ref(false);
+
+const currentDataSource = ref("/data/get_threshold_or_offset");
+const lastSyncedAt = ref("尚未同步");
+const currentStatusText = ref("请选择设备并查询当前上下限。");
+
+const createLimitMap = () => ({
+  x: { upper: 0, lower: 0, offset: 0, threshold: 0 },
+  y: { upper: 0, lower: 0, offset: 0, threshold: 0 },
+  z: { upper: 0, lower: 0, offset: 0, threshold: 0 },
+  ch1: { upper: 0, lower: 0, offset: 0, threshold: 0 },
+  ch2: { upper: 0, lower: 0, offset: 0, threshold: 0 },
+});
+
+const createManualLimitMap = () => ({
+  x: { upper: 0, lower: 0 },
+  y: { upper: 0, lower: 0 },
+  z: { upper: 0, lower: 0 },
+  ch1: { upper: 0, lower: 0 },
+  ch2: { upper: 0, lower: 0 },
+});
+
+const currentLimits = reactive<Record<ChannelKey, LimitState>>(createLimitMap());
+const manualLimits = reactive<Record<ChannelKey, ManualLimitState>>(createManualLimitMap());
+
+const visibleChannels = computed(() =>
+  selectedDevice.value.type === "accelerometer"
+    ? [channelDefinitions.x, channelDefinitions.y, channelDefinitions.z]
+    : [channelDefinitions.ch1, channelDefinitions.ch2]
+);
+
+const devicesByBuilding = (buildingName: string) =>
+  deviceOptions.filter((device) => device.building === buildingName);
+
+const roundValue = (value: number, digits = 6) => Number(value.toFixed(digits));
+
+const formatValue = (value: number | string | null | undefined, digits = 6) => {
+  if (typeof value === "number" && Number.isFinite(value)) {
+    return value.toFixed(digits);
+  }
+
+  if (typeof value === "string" && value.trim() !== "") {
+    const parsed = Number(value);
+    return Number.isFinite(parsed) ? parsed.toFixed(digits) : value;
+  }
+
+  return "--";
+};
+
+const formatThresholdRange = (lower: number, upper: number) =>
+  `${formatValue(lower, 3)} ~ ${formatValue(upper, 3)}`;
+
+const formatTimestamp = (date: Date) =>
+  `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
+    date.getDate()
+  ).padStart(2, "0")} ${String(date.getHours()).padStart(2, "0")}:${String(
+    date.getMinutes()
+  ).padStart(2, "0")}:${String(date.getSeconds()).padStart(2, "0")}`;
+
 const backToMain = () => {
   router.push("/");
 };
-export default {
-  name: 'DeviceControlApp',
-  setup() {
-    const router = useRouter();
-    const backToMain = () => {
-      router.push("/");
-    };
 
-    return {
-      backToMain
-    };
-  },
-  data() {
-    return {
-      deviceOptions: [
-        { value: '安楼外幕墙1A', label: '安楼外幕墙1A', building: '安楼', type: 'accelerometer' },
-        { value: '安楼外幕墙1B', label: '安楼外幕墙1B', building: '安楼', type: 'accelerometer' },
-        { value: '安楼外幕墙1C', label: '安楼外幕墙1C', building: '安楼', type: 'accelerometer' },
-        { value: '安楼外幕墙2D', label: '安楼外幕墙2D', building: '安楼', type: 'accelerometer' },
-        { value: '安楼外幕墙2E', label: '安楼外幕墙2E', building: '安楼', type: 'accelerometer' },
-        { value: '安楼外幕墙2F', label: '安楼外幕墙2F', building: '安楼', type: 'accelerometer' },
-        { value: '安楼外幕墙2Y', label: '安楼外幕墙2Y', building: '安楼', type: 'strainGauge' },
-        { value: '衷和楼#1G', label: '衷和楼1G', building: '衷和楼', type: 'accelerometer' },
-        { value: '衷和楼#1H', label: '衷和楼1H', building: '衷和楼', type: 'accelerometer' },
-        { value: '衷和楼#2I', label: '衷和楼2I', building: '衷和楼', type: 'accelerometer' },
-        { value: '衷和楼#2J', label: '衷和楼2J', building: '衷和楼', type: 'accelerometer' },
-        { value: '衷和楼测点7', label: '衷和楼测点7', building: '衷和楼', type: 'accelerometer' },
-        { value: '衷和楼#2Y', label: '衷和楼2Y', building: '衷和楼', type: 'strainGauge' }
-      ],
+const setCurrentChannel = (key: ChannelKey, offset: number, threshold: number) => {
+  const normalizedOffset = roundValue(Number(offset) || 0);
+  const normalizedThreshold = roundValue(Math.abs(Number(threshold) || 0));
 
-      selectedDevice: { value: '安楼外幕墙1A', label: '安楼外幕墙1A', type: 'accelerometer'},
-      upperBound: 10,
-      lowerBound: 10,
-      emailLimitSetting:25,
-      messageLimitSetting:35,
-
-      xOffset: 0,  // X偏移
-      yOffset: 0,  // Y偏移
-      zOffset: 0,   // Z偏移
-
-      // 加载状态
-      loadingCalibration: false,
-      loadingLimits: false,
-
-      // 消息提示
-      message: {
-        show: false,
-        type: 'success', // success, warning, info, error
-        content: '',
-        duration: 3000,
-        onClose: null
-      },
-      xThreshold: 0,
-      yThreshold: 0,
-      zThreshold: 0,
-      ch1Threshold: 0,
-      ch2Threshold: 0,
-      ch1Offset: 0,
-      ch2Offset: 0,
-      ratio_y_x: 1,
-      ratio_z_y: 1,
-      ratio_ch2_ch1: 1,
-    };
-  },
-  computed: {
-
-  },
-  methods: {
-    // 显示消息提示
-    showMessage(type, content, duration = 3000) {
-      ElMessage({
-        type: type,
-        message: content,
-        duration: duration
-      });
-    },
-
-    // 筛选指定建筑物的设备
-    filteredDevices(buildingName) {
-      return this.deviceOptions.filter(device => device.building === buildingName);
-    },
-
-    // 选择设备
-    selectDevice(device) {
-      this.selectedDevice = device;
-      this.showMessage('info', `已选择: ${device.label}`, 2000);
-
-      // 查询阈值
-      this.fetchThresholds();
-
-      // 获取比例数据
-      this.getRatioData().then(ratios => {
-        if (ratios) {
-          this.ratio_y_x = ratios.ratio_y_x;
-          this.ratio_z_y = ratios.ratio_z_y;
-          this.ratio_ch2_ch1 = ratios.ratio_ch2_ch1;
-        }
-      });
-    },
-
-      // 台阵设置应用
-    async updateSingle(item) {
-      try {
-        // 使用 encodeURIComponent 确保特殊字符被正确编码
-        const encodedDeviceName = encodeURIComponent(item.device_name);
-        const encodedType = encodeURIComponent(item.type);
-        const encodedValue = encodeURIComponent(item.value);
-
-        const url = `${API_BASE_URL}/data/update_threshold_or_offset?device_name=${encodedDeviceName}&type=${encodedType}&value=${encodedValue}`;
-
-        console.log('请求URL:', url);
-
-        // 添加请求超时和错误处理
-        const response = await fetch(url, {
-          method: 'GET',
-          headers: {
-            'Accept': 'application/json',
-            'Content-Type': 'application/json'
-          },
-          timeout: 10000 // 10秒超时
-        })
-
-        // 检查响应状态
-        if (!response.ok) {
-          console.warn(`请求失败: ${response.status} ${response.statusText}`);
-          return { success: false, error: `状态码 ${response.status}` };
-        }
-
-        // 安全地解析JSON响应
-        try {
-          const text = await response.text();
-          // 处理空响应
-          if (!text || text.trim() === '') {
-            return { success: true, data: {} };
-          }
-
-          // 尝试解析JSON
-          const data = JSON.parse(text);
-          return { success: true, data };
-        } catch (parseError) {
-          console.error('JSON解析错误:', parseError);
-          // 如果无法解析，但请求是成功的，我们仍然认为更新成功
-          return { success: true, data: {}, parseWarning: true };
-        }
-      } catch (error) {
-        console.error('更新失败:', error);
-        return { success: false, error: error.message || '网络错误' };
-      }
-    },
-
-    async applyCalibration() {
-      this.loadingCalibration = true;
-      try {
-        const updates = [];
-
-        if (this.selectedDevice.type === 'accelerometer') {
-          updates.push(
-            { device_name: this.selectedDevice.value, type: 'x_offset', value: this.xOffset },
-            { device_name: this.selectedDevice.value, type: 'y_offset', value: this.yOffset },
-            { device_name: this.selectedDevice.value, type: 'z_offset', value: this.zOffset },
-            { device_name: this.selectedDevice.value, type: 'x_limit', value: this.xThreshold },
-            { device_name: this.selectedDevice.value, type: 'y_limit', value: this.yThreshold },
-            { device_name: this.selectedDevice.value, type: 'z_limit', value: this.zThreshold }
-          );
-        } else if (this.selectedDevice.type === 'strainGauge') {
-          updates.push(
-            { device_name: this.selectedDevice.value, type: 'ch1_offset', value: this.ch1Offset },
-            { device_name: this.selectedDevice.value, type: 'ch2_offset', value: this.ch2Offset },
-            { device_name: this.selectedDevice.value, type: 'ch1_limit', value: this.ch1Threshold },
-            { device_name: this.selectedDevice.value, type: 'ch2_limit', value: this.ch2Threshold }
-          );
-        }
-
-        const results = await Promise.all(
-          updates.map(item => this.updateSingle(item))
-        );
-
-        // 检查是否所有请求都成功
-        const allSuccessful = results.every(result => result && result.success);
-        const hasParseWarnings = results.some(result => result && result.parseWarning);
-
-        if (allSuccessful) {
-          if (hasParseWarnings) {
-            this.showMessage('success', `${this.selectedDevice.label} 数据校准参数已更新，但服务器响应格式异常。`);
-          } else {
-            this.showMessage('success', `${this.selectedDevice.label} 数据校准参数已成功更新！`);
-          }
-        } else {
-          this.showMessage('warning', `部分数据校准参数更新可能未成功，请检查网络连接。`);
-        }
-
-        console.log('批量更新结果:', results);
-      } catch (error) {
-        this.showMessage('error', `更新失败: ${error.message || '网络错误'}`);
-        console.error('更新出错:', error);
-      } finally {
-        this.loadingCalibration = false;
-      }
-    },
-
-    async applyLimits() {
-      this.loadingLimits = true;
-      try {
-        const updates = [
-          { device_name: this.selectedDevice.value, type: 'email_limit', value: this.emailLimitSetting },
-          { device_name: this.selectedDevice.value, type: 'message_limit', value: this.messageLimitSetting },
-        ]
-
-        const results = await Promise.all(
-          updates.map(item => this.updateSingle(item))
-        )
-
-        // 检查是否所有请求都成功
-        const allSuccessful = results.every(result => result && result.success);
-        const hasParseWarnings = results.some(result => result && result.parseWarning);
-
-        if (allSuccessful) {
-          if (hasParseWarnings) {
-            this.showMessage('success', `${this.selectedDevice.label} 限值参数已更新，但服务器响应格式异常。`);
-          } else {
-            this.showMessage('success', `${this.selectedDevice.label} 限值参数已成功更新！`);
-          }
-        } else {
-          this.showMessage('warning', `部分限值参数更新可能未成功，请检查网络连接。`);
-        }
-
-        console.log('批量更新结果:', results);
-      } catch (error) {
-        this.showMessage('error', `更新失败: ${error.message || '网络错误'}`);
-        console.error('更新出错:', error);
-      } finally {
-        this.loadingLimits = false;
-      }
-    },
-
-    async fetchThresholds() {
-      try {
-        const response = await axios.get(`${API_BASE_URL}/data/get_threshold_or_offset`, {
-          params: {
-            device_name: this.selectedDevice.value,
-            device_type: this.selectedDevice.type
-          }
-        });
-
-        if (response.data.status === 'success') {
-          const data = response.data.data;
-          this.xOffset = data.x_offset || 0;
-          this.yOffset = data.y_offset || 0;
-          this.zOffset = data.z_offset || 0;
-
-          // 根据设备类型设置阈值
-          if (this.selectedDevice.type === 'accelerometer') {
-            this.xThreshold = data.x_limit || 0;
-            this.yThreshold = data.y_limit || 0;
-            this.zThreshold = data.z_limit || 0;
-          } else if (this.selectedDevice.type === 'strainGauge') {
-            this.ch1Threshold = data.ch1_limit || 0;
-            this.ch2Threshold = data.ch2_limit || 0;
-          }
-        } else {
-          this.showMessage('error', '获取阈值失败');
-        }
-      } catch (error) {
-        console.error('获取阈值失败:', error);
-        this.showMessage('error', '获取阈值失败');
-      }
-    },
-
-    async fetchLimits() {
-      try {
-        const response = await axios.get(`${API_BASE_URL}/data/get_threshold_or_offset`, {
-          params: {
-            device_name: this.selectedDevice.value,
-            device_type: this.selectedDevice.type
-          }
-        });
-
-        if (response.data.status === 'success') {
-          const data = response.data.data;
-          this.emailLimitSetting = data.email_limit || 25;
-          this.messageLimitSetting = data.message_limit || 35;
-        } else {
-          this.showMessage('error', '获取限值设置失败');
-        }
-      } catch (error) {
-        console.error('获取限值设置失败:', error);
-        this.showMessage('error', '获取限值设置失败');
-      }
-    },
-
-    updateThresholds(type, value) {
-      console.log(numericValue);
-      if (type === 'xThreshold') {
-        this.yThreshold = Math.abs((numericValue * (this.ratio_y_x)).toFixed(2));
-        this.zThreshold = Math.abs((this.yThreshold * (this.ratio_z_y)).toFixed(2));
-      } else if (type === 'yThreshold') {
-        this.xThreshold = Math.abs((numericValue /(this.ratio_y_x)).toFixed(2));
-        this.zThreshold = Math.abs((this.yThreshold * (this.ratio_z_y)).toFixed(2));
-      } else if (type === 'zThreshold') {
-        this.yThreshold = Math.abs((numericValue / (this.ratio_z_y)).toFixed(2));
-        this.xThreshold = Math.abs((this.yThreshold / (this.ratio_y_x)).toFixed(2));
-      } else if (type === 'ch1Threshold') {
-        this.ch2Threshold = Math.abs((numericValue * (this.ratio_ch2_ch1)).toFixed(2));
-      } else if (type === 'ch2Threshold') {
-        this.ch1Threshold = Math.abs((numericValue / (this.ratio_ch2_ch1)).toFixed(2));
-      }
-    },
-
-    async getRatioData() {
-      try {
-        const response = await axios.get(`${API_BASE_URL}/data/get_ratio_data`, {
-          params: {
-            device_name: this.selectedDevice.value,
-            device_type: this.selectedDevice.type
-          }
-        });
-
-        if (response.data.status === 'success') {
-          return response.data.data;
-        } else {
-          this.showMessage('error', '获取比例数据失败');
-          return null;
-        }
-      } catch (error) {
-        console.error('获取比例数据失败:', error);
-        this.showMessage('error', '获取比例数据失败');
-        return null;
-      }
-    },
-
-  },
-  mounted() {
-    // 在组件挂载时获取比例数据
-    this.getRatioData().then(ratios => {
-      this.ratio_y_x = ratios.ratio_y_x;
-      this.ratio_z_y = ratios.ratio_z_y;
-      this.ratio_ch2_ch1 = ratios.ratio_ch2_ch1;
-    });
-    // 获取限值设置
-    this.fetchLimits();
-  },
+  currentLimits[key].offset = normalizedOffset;
+  currentLimits[key].threshold = normalizedThreshold;
+  currentLimits[key].upper = roundValue(normalizedOffset + normalizedThreshold);
+  currentLimits[key].lower = roundValue(normalizedOffset - normalizedThreshold);
 };
+
+const syncManualChannelFromCurrent = (key: ChannelKey) => {
+  manualLimits[key].upper = currentLimits[key].upper;
+  manualLimits[key].lower = currentLimits[key].lower;
+};
+
+const resetAllChannels = () => {
+  (Object.keys(currentLimits) as ChannelKey[]).forEach((key) => {
+    setCurrentChannel(key, 0, 0);
+    syncManualChannelFromCurrent(key);
+  });
+};
+
+const parseManualCalibration = (key: ChannelKey) => {
+  const upper = Number(manualLimits[key].upper);
+  const lower = Number(manualLimits[key].lower);
+
+  if (!Number.isFinite(upper) || !Number.isFinite(lower) || upper <= lower) {
+    return null;
+  }
+
+  return {
+    upper: roundValue(upper),
+    lower: roundValue(lower),
+    offset: roundValue((upper + lower) / 2),
+    threshold: roundValue(Math.abs(upper - lower) / 2),
+  };
+};
+
+const getManualCalibrationPreview = (key: ChannelKey) => parseManualCalibration(key);
+
+const fetchThresholds = async () => {
+  loadingFetch.value = true;
+  currentStatusText.value = `正在查询 ${selectedDevice.value.label} 的当前上下限...`;
+
+  try {
+    const response = await axios.get(`${API_BASE_URL}/data/get_threshold_or_offset`, {
+      params: {
+        device_name: selectedDevice.value.value,
+        device_type: selectedDevice.value.type,
+      },
+    });
+
+    if (response.data.status !== "success") {
+      currentStatusText.value = "接口已响应，但没有返回有效的上下限信息。";
+      ElMessage.error("获取上下限失败");
+      return;
+    }
+
+    const data = response.data.data ?? {};
+    resetAllChannels();
+
+    if (selectedDevice.value.type === "accelerometer") {
+      setCurrentChannel("x", Number(data.x_offset ?? 0), Number(data.x_limit ?? 0));
+      setCurrentChannel("y", Number(data.y_offset ?? 0), Number(data.y_limit ?? 0));
+      setCurrentChannel("z", Number(data.z_offset ?? 0), Number(data.z_limit ?? 0));
+      syncManualChannelFromCurrent("x");
+      syncManualChannelFromCurrent("y");
+      syncManualChannelFromCurrent("z");
+    } else {
+      setCurrentChannel("ch1", Number(data.ch1_offset ?? 0), Number(data.ch1_limit ?? 0));
+      setCurrentChannel("ch2", Number(data.ch2_offset ?? 0), Number(data.ch2_limit ?? 0));
+      syncManualChannelFromCurrent("ch1");
+      syncManualChannelFromCurrent("ch2");
+    }
+
+    currentDataSource.value = "/data/get_threshold_or_offset";
+    lastSyncedAt.value = formatTimestamp(new Date());
+    currentStatusText.value = `${selectedDevice.value.label} 的当前上下限已同步，可以继续人工调整，并查看原始阈值范围。`;
+  } catch (error) {
+    console.error("获取上下限失败:", error);
+    currentDataSource.value = "接口获取失败";
+    lastSyncedAt.value = formatTimestamp(new Date());
+    currentStatusText.value = "当前上下限获取失败，页面保留本地编辑值。";
+    ElMessage.error("获取上下限失败");
+  } finally {
+    loadingFetch.value = false;
+  }
+};
+
+const updateSingle = async (item: {
+  device_name: string;
+  type: string;
+  value: number | string;
+}) => {
+  const response = await fetch(
+    `${API_BASE_URL}/data/update_threshold_or_offset?device_name=${encodeURIComponent(
+      item.device_name
+    )}&type=${encodeURIComponent(item.type)}&value=${encodeURIComponent(item.value)}`,
+    {
+      method: "GET",
+      headers: {
+        Accept: "application/json",
+        "Content-Type": "application/json",
+      },
+    }
+  );
+
+  return response.ok;
+};
+
+const applyManualLimits = async () => {
+  loadingCalibration.value = true;
+
+  try {
+    const channelCalibrations = visibleChannels.value.map((channel) => {
+      const parsed = parseManualCalibration(channel.key);
+      if (!parsed) {
+        throw new Error(`${channel.label} 的上下限输入无效，请确认上限必须大于下限。`);
+      }
+
+      return {
+        key: channel.key,
+        ...parsed,
+      };
+    });
+
+    const updates = channelCalibrations.flatMap((item) => [
+      { device_name: selectedDevice.value.value, type: `${item.key}_offset`, value: item.offset },
+      { device_name: selectedDevice.value.value, type: `${item.key}_limit`, value: item.threshold },
+    ]);
+
+    const results = await Promise.all(updates.map(updateSingle));
+
+    if (!results.every(Boolean)) {
+      ElMessage.warning("部分上下限更新失败，请检查网络连接。");
+      return;
+    }
+
+    channelCalibrations.forEach((item) => {
+      setCurrentChannel(item.key, item.offset, item.threshold);
+      syncManualChannelFromCurrent(item.key);
+    });
+
+    currentDataSource.value = "人工设置已提交到现有接口";
+    lastSyncedAt.value = formatTimestamp(new Date());
+    currentStatusText.value = `${selectedDevice.value.label} 的人工上下限已保存。`;
+    ElMessage.success(`${selectedDevice.value.label} 的人工上下限已保存`);
+  } catch (error) {
+    console.error("保存人工上下限失败:", error);
+    ElMessage.error(error instanceof Error ? error.message : "保存人工上下限失败");
+  } finally {
+    loadingCalibration.value = false;
+  }
+};
+
+const openDeviceDetail = (device: DeviceOption) => {
+  router.push({
+    path: "/vibration/parameter-detail",
+    query: { device: device.value },
+  });
+};
+
+const weatherData = reactive<{
+  wind_speed_ms: number | null;
+  wind_bin: string;
+}>({
+  wind_speed_ms: null,
+  wind_bin: '',
+});
+
+const windGaugeRef = ref<HTMLDivElement | null>(null);
+let windGaugeChart: echarts.ECharts | null = null;
+
+const BEAUFORT_SCALE = [
+  { max: 0.3,      level: 0,  label: '静风',   color: '#10b981' },
+  { max: 1.6,      level: 1,  label: '软风',   color: '#22c55e' },
+  { max: 3.4,      level: 2,  label: '轻风',   color: '#4ade80' },
+  { max: 5.5,      level: 3,  label: '微风',   color: '#84cc16' },
+  { max: 8.0,      level: 4,  label: '和风',   color: '#84cc16' },
+  { max: 10.8,     level: 5,  label: '清劲风', color: '#eab308' },
+  { max: 13.9,     level: 6,  label: '强风',   color: '#f97316' },
+  { max: 17.2,     level: 7,  label: '疾风',   color: '#fb923c' },
+  { max: 20.8,     level: 8,  label: '大风',   color: '#ef4444' },
+  { max: 24.5,     level: 9,  label: '烈风',   color: '#dc2626' },
+  { max: 28.5,     level: 10, label: '狂风',   color: '#b91c1c' },
+  { max: 32.7,     level: 11, label: '暴风',   color: '#7c3aed' },
+  { max: Infinity, level: 12, label: '台风',   color: '#6d28d9' },
+];
+
+const windBeaufort = computed(() => {
+  const ms = weatherData.wind_speed_ms;
+  if (ms === null) return { level: '--' as string | number, label: '未知', color: '#94a3b8' };
+  return BEAUFORT_SCALE.find(b => ms < b.max) ?? BEAUFORT_SCALE[BEAUFORT_SCALE.length - 1];
+});
+
+const buildWindGaugeOption = (speed: number | null): any => {
+  const s = speed ?? 0;
+  return {
+    backgroundColor: 'transparent',
+    series: [{
+      type: 'gauge',
+      startAngle: 210,
+      endAngle: -30,
+      min: 0,
+      max: 30,
+      splitNumber: 6,
+      radius: '85%',
+      center: ['50%', '58%'],
+      axisLine: {
+        lineStyle: {
+          width: 14,
+          color: [
+            [0.167, '#22c55e'],
+            [0.333, '#84cc16'],
+            [0.5,   '#eab308'],
+            [0.667, '#f97316'],
+            [0.833, '#ef4444'],
+            [1.0,   '#7c3aed'],
+          ]
+        }
+      },
+      axisTick: { show: false },
+      splitLine: {
+        length: 10,
+        lineStyle: { color: 'rgba(0,0,0,0.15)', width: 2 }
+      },
+      axisLabel: {
+        color: '#475569',
+        fontSize: 10,
+        distance: 16,
+        formatter: (v: number) => `${v}`,
+      },
+      pointer: {
+        length: '62%',
+        width: 5,
+        itemStyle: { color: 'auto' }
+      },
+      detail: {
+        valueAnimation: true,
+        formatter: (v: number) => speed !== null ? `${v} m/s` : '--',
+        color: '#0f172a',
+        fontSize: 18,
+        fontWeight: 700,
+        offsetCenter: [0, '45%'],
+      },
+      data: [{ value: s }]
+    }]
+  };
+};
+
+const initWindGauge = () => {
+  if (!windGaugeRef.value) return;
+  windGaugeChart?.dispose();
+  windGaugeChart = echarts.init(windGaugeRef.value, null, { renderer: 'svg' });
+  windGaugeChart.setOption(buildWindGaugeOption(weatherData.wind_speed_ms));
+};
+
+watch(
+  () => weatherData.wind_speed_ms,
+  (ms: number | null) => windGaugeChart?.setOption(buildWindGaugeOption(ms))
+);
+
+onUnmounted(() => {
+  windGaugeChart?.dispose();
+  windGaugeChart = null;
+  overviewChart?.dispose();
+  overviewChart = null;
+});
+
+const schedulerConfig = reactive({
+  type: 'interval',
+  minutes: 60,
+  cronTime: new Date(new Date().setHours(2, 0, 0, 0)), // 默认凌晨2点
+  isRunning: false
+});
+
+const isApplying = ref(false);
+
+const fetchWeatherData = async () => {
+  try {
+    const res = await axios.get(`${API_BASE_URL}/agent/weather-status`);
+    if (res.data.status === 'success') {
+      weatherData.wind_speed_ms = res.data.wind_speed_ms ?? null;
+      weatherData.wind_bin = res.data.wind_bin ?? '';
+    }
+  } catch (error) {
+    console.error("读取气象失败", error);
+  }
+};
+
+const applyWeatherRulesNow = async () => {
+  try {
+    isApplying.value = true;
+    const res = await axios.post(`${API_BASE_URL}/agent/execute-now`);
+    ElMessage.success(res.data.msg);
+  } catch (error) {
+    ElMessage.error("一键设置失败");
+  } finally {
+    isApplying.value = false;
+  }
+};
+
+const syncScheduleConfigFromBackend = (config: any) => {
+  schedulerConfig.isRunning = Boolean(config?.isRunning);
+
+  if (config?.type === 'cron') {
+    schedulerConfig.type = 'cron';
+    const hour = Number.isFinite(Number(config.hour)) ? Number(config.hour) : 0;
+    const minute = Number.isFinite(Number(config.minute)) ? Number(config.minute) : 0;
+    schedulerConfig.cronTime = new Date(new Date().setHours(hour, minute, 0, 0));
+    return;
+  }
+
+  schedulerConfig.type = 'interval';
+  if (Number.isFinite(Number(config?.minutes))) {
+    schedulerConfig.minutes = Number(config.minutes);
+  }
+};
+
+const fetchScheduleConfig = async () => {
+  try {
+    const res = await axios.get(`${API_BASE_URL}/agent/schedule-config`);
+    if (res.data.status === 'success') {
+      syncScheduleConfigFromBackend(res.data.data ?? {});
+    }
+  } catch (error) {
+    console.error("读取定时任务配置失败", error);
+  }
+};
+
+const saveSchedule = async () => {
+  try {
+    const payload = {
+      type: schedulerConfig.type,
+      minutes: schedulerConfig.minutes,
+      hour: schedulerConfig.cronTime ? schedulerConfig.cronTime.getHours() : 0,
+      minute: schedulerConfig.cronTime ? schedulerConfig.cronTime.getMinutes() : 0
+    };
+    const res = await axios.post(`${API_BASE_URL}/agent/set-schedule`, payload);
+    schedulerConfig.isRunning = true;
+    await fetchScheduleConfig();
+    ElMessage.success(res.data.msg);
+  } catch (error) {
+    ElMessage.error("定时任务设置失败");
+  }
+};
+
+const stopSchedule = async () => {
+  try {
+    const payload = { type: 'stop' };
+    const res = await axios.post(`${API_BASE_URL}/agent/set-schedule`, payload);
+    schedulerConfig.isRunning = false;
+    await fetchScheduleConfig();
+    ElMessage.success(res.data.msg);
+  } catch (error) {
+    ElMessage.error("停止任务失败");
+  }
+};
+
+
+// ── All-Device Threshold Overview ──
+interface OverviewChannelData {
+  lower: number;
+  upper: number;
+  offset: number;
+  threshold: number;
+}
+interface DeviceOverviewState {
+  loaded: boolean;
+  loading: boolean;
+  error: boolean;
+  channels: Partial<Record<ChannelKey, OverviewChannelData>>;
+}
+const overviewSnapshots = reactive<Record<string, DeviceOverviewState>>(
+  Object.fromEntries(deviceOptions.map(d => [d.value, { loaded: false, loading: false, error: false, channels: {} }]))
+);
+const overviewChartRef = ref<HTMLDivElement | null>(null);
+let overviewChart: echarts.ECharts | null = null;
+const loadingOverview = ref(false);
+const overviewTypeOptions: Array<{ value: DeviceType; label: string; hint: string }> = [
+  { value: 'accelerometer', label: '加速度计', hint: '单位为 gal' },
+  { value: 'strainGauge', label: '应力计', hint: '单位为 με' },
+];
+const activeOverviewType = ref<DeviceType>('accelerometer');
+
+const overviewLoadedCount = computed(() =>
+  deviceOptions.filter(d => overviewSnapshots[d.value]?.loaded).length
+);
+const getOverviewTypeLabel = (type: DeviceType) => (type === 'accelerometer' ? '加速度计' : '应力计');
+const activeOverviewLabel = computed(() => getOverviewTypeLabel(activeOverviewType.value));
+const activeOverviewDevices = computed(() =>
+  deviceOptions.filter(device => device.type === activeOverviewType.value)
+);
+const activeOverviewLoadedCount = computed(() =>
+  activeOverviewDevices.value.filter(device => overviewSnapshots[device.value]?.loaded).length
+);
+const activeOverviewHasAnyStatus = computed(() =>
+  activeOverviewDevices.value.some((device) => {
+    const state = overviewSnapshots[device.value];
+    return Boolean(state?.loaded || state?.loading || state?.error);
+  })
+);
+
+interface OverviewRow {
+  label: string;
+  lower: number;
+  upper: number;
+  offset: number;
+  color: string;
+  deviceType: DeviceType;
+}
+
+const OVERVIEW_ROW_HEIGHT = 22;
+const OVERVIEW_BAR_WIDTH = 12;
+const OVERVIEW_CHART_PADDING = 44;
+
+const OVERVIEW_COLORS: Record<string, string> = {
+  '衷和楼-accelerometer': '#3b82f6',
+  '衷和楼-strainGauge':   '#f59e0b',
+  '安楼-accelerometer':   '#10b981',
+  '安楼-strainGauge':     '#8b5cf6',
+};
+
+const activeOverviewLegendItems = computed(() =>
+  buildingNames.map((building) => ({
+    label: `${building}·${activeOverviewLabel.value}`,
+    color: OVERVIEW_COLORS[`${building}-${activeOverviewType.value}`] ?? '#64748b',
+  }))
+);
+
+const formatOverviewAxisValue = (value: number, deviceType: DeviceType) => {
+  if (deviceType === 'accelerometer') {
+    return value.toFixed(3);
+  }
+
+  const abs = Math.abs(value);
+  if (abs >= 1000) return value.toFixed(0);
+  if (abs >= 100) return value.toFixed(1);
+  return value.toFixed(2);
+};
+
+const formatOverviewTooltipValue = (value: number, deviceType: DeviceType) =>
+  deviceType === 'accelerometer' ? value.toFixed(6) : formatOverviewAxisValue(value, deviceType);
+
+const overviewChartRows = computed<OverviewRow[]>(() => {
+  const rows: OverviewRow[] = [];
+  const chLabels: Record<ChannelKey, string> = { x: 'X', y: 'Y', z: 'Z', ch1: 'Ch1', ch2: 'Ch2' };
+  for (const device of deviceOptions) {
+    const snap = overviewSnapshots[device.value];
+    if (!snap?.loaded) continue;
+    const channels: ChannelKey[] = device.type === 'accelerometer' ? ['x', 'y', 'z'] : ['ch1', 'ch2'];
+    const color = OVERVIEW_COLORS[`${device.building}-${device.type}`] ?? '#64748b';
+    for (const ch of channels) {
+      const d = snap.channels[ch];
+      if (!d) continue;
+      rows.push({
+        label: `${device.label} · ${chLabels[ch]}`,
+        lower: d.lower,
+        upper: d.upper,
+        offset: d.offset,
+        color,
+        deviceType: device.type,
+      });
+    }
+  }
+  return rows;
+});
+
+const activeOverviewRows = computed<OverviewRow[]>(() =>
+  overviewChartRows.value.filter((row) => row.deviceType === activeOverviewType.value)
+);
+
+const buildOverviewChartOption = (rows: OverviewRow[]): any => {
+  if (rows.length === 0) return {};
+  const deviceType = rows[0].deviceType;
+  const typeLabel = getOverviewTypeLabel(deviceType);
+  const allVals = rows.flatMap(r => [r.lower, r.upper]);
+  const xMin = Math.min(...allVals);
+  const xMax = Math.max(...allVals);
+  const xPad = Math.max((xMax - xMin) * 0.08, 0.0001);
+
+  return {
+    backgroundColor: 'transparent',
+    tooltip: {
+      trigger: 'item',
+      formatter: (params: any) => {
+        const idx = params.dataIndex ?? 0;
+        const row = rows[idx];
+        if (!row) return '';
+        return `<b>${row.label}</b><br/>上限：${formatOverviewTooltipValue(row.upper, row.deviceType)}<br/>下限：${formatOverviewTooltipValue(row.lower, row.deviceType)}<br/>中心：${formatOverviewTooltipValue(row.offset, row.deviceType)}<br/>范围幅：${formatOverviewTooltipValue(row.upper - row.lower, row.deviceType)}`;
+      },
+    },
+    animation: false,
+    grid: { left: 8, right: 20, top: 4, bottom: 20, containLabel: true },
+    xAxis: {
+      type: 'value',
+      min: xMin - xPad,
+      max: xMax + xPad,
+      name: `${typeLabel}阈值`,
+      nameTextStyle: { color: '#64748b', padding: [10, 0, 0, 0] },
+      axisLabel: {
+        color: '#64748b',
+        fontSize: 10,
+        formatter: (v: number) => formatOverviewAxisValue(v, deviceType),
+      },
+      splitLine: { lineStyle: { color: '#e2e8f0' } },
+    },
+    yAxis: {
+      type: 'category',
+      data: rows.map(r => r.label),
+      axisLabel: { color: '#334155', fontSize: 11 },
+      inverse: true,
+    },
+    series: [
+      {
+        type: 'custom',
+        coordinateSystem: 'cartesian2d',
+        data: rows.map(r => [r.lower, r.upper, r.offset]),
+        renderItem: (params: any, api: any) => {
+          const lower = Number(api.value(0));
+          const upper = Number(api.value(1));
+          const offset = Number(api.value(2));
+          const y = api.coord([0, params.dataIndex])[1];
+          const lowerPoint = api.coord([lower, params.dataIndex]);
+          const upperPoint = api.coord([upper, params.dataIndex]);
+          const centerPoint = api.coord([offset, params.dataIndex]);
+          const left = Math.min(lowerPoint[0], upperPoint[0]);
+          const width = Math.max(2, Math.abs(upperPoint[0] - lowerPoint[0]));
+          const barHeight = Math.max(OVERVIEW_BAR_WIDTH, api.size([0, 1])[1] * 0.48);
+          const color = rows[params.dataIndex]?.color ?? '#64748b';
+
+          return {
+            type: 'group',
+            children: [
+              {
+                type: 'rect',
+                shape: {
+                  x: left,
+                  y: y - barHeight / 2,
+                  width,
+                  height: barHeight,
+                  r: 3,
+                },
+                style: {
+                  fill: color,
+                  opacity: 0.78,
+                },
+              },
+              {
+                type: 'line',
+                shape: {
+                  x1: centerPoint[0],
+                  y1: y - barHeight / 2 - 2,
+                  x2: centerPoint[0],
+                  y2: y + barHeight / 2 + 2,
+                },
+                style: {
+                  stroke: '#0f172a',
+                  lineWidth: 2,
+                  opacity: 0.85,
+                },
+              },
+            ],
+          };
+        },
+      },
+    ],
+  };
+};
+
+const initOverviewChart = () => {
+  if (!overviewChartRef.value) return;
+  overviewChart?.dispose();
+  overviewChart = echarts.init(overviewChartRef.value);
+};
+
+const updateOverviewChart = async () => {
+  if (!overviewChart) return;
+  const rows = activeOverviewRows.value;
+  const h = Math.max(240, rows.length * OVERVIEW_ROW_HEIGHT + OVERVIEW_CHART_PADDING);
+  if (overviewChartRef.value) overviewChartRef.value.style.height = `${h}px`;
+  // 等 DOM 应用新高度后再 resize，否则 ECharts 仍按旧尺寸布局留下空白
+  await nextTick();
+  overviewChart.resize({ height: h });
+  if (rows.length === 0) {
+    overviewChart.clear();
+    return;
+  }
+  overviewChart.setOption(buildOverviewChartOption(rows), true);
+};
+
+// 当容器被 v-if 真正挂载后再初始化；之后数据刷新时也保持更新
+watch(overviewChartRef, async (el) => {
+  if (el) { await nextTick(); initOverviewChart(); await updateOverviewChart(); }
+  else { overviewChart?.dispose(); overviewChart = null; }
+});
+
+watch(activeOverviewRows, () => {
+  if (overviewChart) nextTick(updateOverviewChart);
+}, { deep: true });
+
+const fetchAllThresholds = async () => {
+  loadingOverview.value = true;
+  deviceOptions.forEach(d => {
+    overviewSnapshots[d.value].loading = true;
+    overviewSnapshots[d.value].error   = false;
+  });
+  await Promise.allSettled(deviceOptions.map(async (device) => {
+    try {
+      const res = await axios.get(`${API_BASE_URL}/data/get_threshold_or_offset`, {
+        params: { device_name: device.value, device_type: device.type },
+      });
+      const data = res.data?.data ?? {};
+      const chs: Partial<Record<ChannelKey, OverviewChannelData>> = {};
+      const keys: ChannelKey[] = device.type === 'accelerometer' ? ['x', 'y', 'z'] : ['ch1', 'ch2'];
+      for (const ch of keys) {
+        const off = roundValue(Number(data[`${ch}_offset`] ?? 0));
+        const lim = roundValue(Math.abs(Number(data[`${ch}_limit`] ?? 0)));
+        chs[ch] = { offset: off, threshold: lim, upper: roundValue(off + lim), lower: roundValue(off - lim) };
+      }
+      overviewSnapshots[device.value] = { loaded: true, loading: false, error: false, channels: chs };
+    } catch {
+      overviewSnapshots[device.value].loading = false;
+      overviewSnapshots[device.value].error   = true;
+    }
+  }));
+  loadingOverview.value = false;
+};
+
+onMounted(async () => {
+  await fetchWeatherData();
+  initWindGauge();
+  await fetchScheduleConfig();
+});
 </script>
 
 <style scoped>
-/* 页面布局 */
-@import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css');
-.app-container {
-  width: 100%;
+.page-shell {
+  /* 在振动中心布局内由父级 overflow-y-auto 承载滚动，此处不锁死 100vh，便于滚轮滑完整页 */
+  min-height: min-content;
+  background:
+    radial-gradient(circle at top right, rgba(22, 163, 74, 0.1), transparent 26%),
+    linear-gradient(180deg, #f8fafc 0%, #eef2f7 100%);
+  padding: 56px 16px 32px;
+}
+
+.top-action {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 10;
+}
+
+.page-body {
+  max-width: 1160px;
+  margin: 0 auto;
   display: flex;
   flex-direction: column;
-  min-height: 100vh; /* 改为最小高度 */
-  height: auto; /* 允许内容扩展 */
-  background-color: #f4f5f7;
-  overflow-x: hidden; /* 防止水平滚动 */
-  padding-bottom: 80px; /* 添加底部内边距，防止最后的元素被遮挡 */
+  gap: 20px;
 }
 
-.green-underline-title {
-  color: green;
-  text-decoration: underline;
-  margin-bottom: 10px;
+.panel {
+  background: rgba(255, 255, 255, 0.96);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+  border-radius: 20px;
+  padding: 22px;
+  box-shadow: 0 18px 40px rgba(15, 23, 42, 0.08);
 }
 
-.header {
-  background-color: #fff;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  padding: 10px 20px;
-}
-
-.navbar {
+.panel-heading {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 18px;
 }
 
-/* Navbar 容器样式 */
-.navBar {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  padding: 20px;
-  border-bottom: 2px solid #f0f0f0;
-}
-
-/* 标题样式 */
-.app-title {
+.panel-heading h1,
+.panel-heading h2 {
+  margin: 4px 0 0;
   font-size: 24px;
-  font-weight: bold; /* 设置粗体 */
-  margin-bottom: 20px; /* 设置与按钮的距离 */
+  color: #0f172a;
 }
 
-/* 按钮容器样式 */
-.nav-buttons {
-  display: flex;
-  gap: 20px; /* 按钮之间的间距 */
+.eyebrow {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: #16a34a;
+  text-transform: uppercase;
 }
 
-/* 按钮默认样式 */
-.nav-buttons button {
-  padding: 10px 20px;
-  font-size: 16px;
-  font-weight: 500;
-  color: #333;
-  background-color: transparent;
-  border: none;
-  border-bottom: 2px solid transparent; /* 默认没有底线 */
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-
-/* 按钮 hover 样式 */
-.nav-buttons button:hover {
-  color: #007bff;
-}
-
-/* 当前选中按钮的样式 */
-.nav-buttons button.active {
-  color:#28a745; /* 激活时的文本颜色 */
-  border-bottom: 2px solid #28a745; /* 绿色下划线 */
-  font-weight: bold;
-}
-
-@import url('https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css');
-.app-container {
+.status-chip {
+  min-width: 180px;
+  background: #f0fdf4;
+  border: 1px solid #bbf7d0;
+  border-radius: 16px;
+  padding: 12px 14px;
+  color: #166534;
   display: flex;
   flex-direction: column;
-  min-height: 100vh; /* 改为最小高度 */
-  height: auto; /* 允许内容扩展 */
-  background-color: #ffffff;
-  overflow-x: hidden; /* 防止水平滚动 */
+  gap: 6px;
 }
 
-.parameter-panel {
-  flex: 1;
+.status-chip strong {
+  font-size: 18px;
+}
+
+.weather-panel {
+  border: 2px solid #bfdbfe;
+  background: linear-gradient(180deg, #eff6ff 0%, #f8fbff 100%);
+}
+
+.weather-panel .panel-heading h2 {
+  color: #1e40af;
+}
+
+.weather-eyebrow {
+  color: #2563eb;
+}
+
+.weather-status-chip {
+  background: #dbeafe;
+  border-color: #bfdbfe;
+  color: #1e40af;
+}
+
+.workspace-status-chip {
+  background: #eff6ff;
+  border-color: #bfdbfe;
+  color: #1d4ed8;
+}
+
+.workspace-note-card {
+  border-left: 4px solid #60a5fa;
+}
+
+.weather-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 16px;
+}
+
+.weather-summary-card,
+.weather-action-card,
+.schedule-card {
+  background: #fff;
+  border: 1px solid #bfdbfe;
+  border-radius: 16px;
+  padding: 16px;
+}
+
+.weather-summary-card span {
+  display: block;
+  color: #64748b;
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.weather-summary-card strong {
+  color: #1e3a8a;
+  font-size: 17px;
+}
+
+.weather-note-card {
+  background: #fff;
+  border-left: 4px solid #3b82f6;
+}
+
+.weather-note-card p {
+  margin: 0;
+}
+
+.weather-note-card p + p {
+  margin-top: 8px;
+}
+
+.weather-action-layout {
+  display: grid;
+  grid-template-columns: minmax(280px, 0.8fr) minmax(0, 1.2fr);
+  gap: 16px;
+}
+
+.weather-action-card h3,
+.schedule-card h3 {
+  margin: 0 0 10px;
+  font-size: 17px;
+  color: #1e3a8a;
+}
+
+.weather-action-card p {
+  margin: 0 0 14px;
+  color: #475569;
+  line-height: 1.6;
+}
+
+.schedule-row {
+  margin-top: 12px;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  justify-content: flex-start; /* 改为顶部对齐 */
-  background-color: #ffffff;
-  padding: 1rem; /* 减小内边距 */
-  overflow-y: auto; /* 添加垂直滚动 */
+  gap: 12px;
+  flex-wrap: wrap;
+  color: #4b5563;
+  font-size: 14px;
 }
 
-.parameter-form {
-  width: 100%;
-  max-width: 800px;
+.schedule-actions {
+  margin-top: 16px;
   display: flex;
-  flex-direction: column;
-  gap: 0.8rem; /* 减小间距 */
-  margin-bottom: 70px; /* 添加底部间距确保最后元素可见 */
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
-.parameter-row {
-  display: flex;
-  align-items: center;
-  gap: 0.8rem; /* 减小间距 */
-  padding: 0.4rem 0.8rem; /* 减小内边距 */
-  flex-wrap: wrap; /* 在小屏幕上允许换行 */
-}
-
-.parameter-row h1 {
-  font-size: 1rem; /* 减小标题字体大小 */
-  margin: 0; /* 移除边距 */
-  white-space: nowrap; /* 防止文字换行 */
-}
-
-.parameter-group {
-  display: flex;
-  flex-direction: column;
-  align-items: left;
-  gap: 0.8rem; /* 减小间距 */
-  background: #f9f9f9;
-  padding: 0.5rem 0.8rem; /* 减小内边距 */
-  border-radius: 8px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  margin-bottom: 0.8rem; /* 添加底部间距 */
-}
-
-.parameter-icon {
-  font-size: 1.2rem; /* 减小图标大小 */
-  color: #4caf50;
-  min-width: 1.2rem; /* 设置最小宽度 */
-}
-
-.parameter-label {
-  flex: 1;
-  font-weight: bold;
-}
-
-.parameter-input {
-  flex: 2;
-}
-
-/* 建筑物网格样式 */
 .building-grid {
-  display: flex;
-  flex-direction: column;
-  gap: 1rem; /* 减小间距 */
-  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 18px;
 }
 
-.building-group {
-  display: flex;
-  flex-direction: column;
-  gap: 0.4rem; /* 减小间距 */
+.building-card {
+  border: 1px solid #dbeafe;
+  border-radius: 16px;
+  padding: 16px;
+  background: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
 }
 
-.building-group h3 {
-  color: #333;
-  font-size: 1rem; /* 减小字体大小 */
-  margin-bottom: 3px;
-  padding-left: 5px;
-  border-left: 3px solid #4caf50;
+.building-card h2 {
+  margin: 0 0 12px;
+  font-size: 18px;
+  color: #0f172a;
 }
 
 .device-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(80px, 1fr)); /* 减小卡片尺寸 */
-  gap: 8px; /* 减小间距 */
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
 }
 
-.device-item {
-  background-color: #e9ecef;
-  padding: 6px 8px; /* 减小内边距 */
-  border-radius: 4px;
-  text-align: center;
-  cursor: pointer;
-  transition: all 0.2s ease;
-  font-size: 0.85rem; /* 减小字体大小 */
-}
-
-.device-item:hover {
-  background-color: #d1e7dd;
-  transform: translateY(-2px);
-}
-
-.device-item.active {
-  background-color: #4caf50;
-  color: white;
-  font-weight: bold;
-}
-
-.selected-device-info {
-  font-weight: bold;
-  color: #4caf50;
-}
-
-/* 面板展开/收起动画效果 */
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.3s ease, transform 0.3s ease; /* 动画效果 */
-}
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0; /* 起始/结束透明度 */
-  transform: translateY(10px); /* 起始/结束位置偏移 */
-}
-
-.outlayer {
-  width: 100%; /* 占满屏幕 */
-  display: flex;
-  flex-direction: column;
-  flex: 1;
-  overflow-y: auto; /* 允许垂直滚动 */
-  height: calc(100vh - 60px); /* 减去头部高度 */
-  padding-bottom: 80px; /* 添加底部内边距 */
-}
-
-.device-section,
-.charts-section {
-  margin: 20px;
-}
-
-.section-title {
-  font-size: 20px;
-  margin-bottom: 10px;
-}
-
-.device-container {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.device-box {
-  width: 80px;
-  height: 60px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 12px;
-  color: #fff;
-  border-radius: 8px;
-  cursor: pointer;
-  transition: background-color 0.3s ease;
-}
-
-.charts-section {
-  margin: 20px 0;
-}
-
-.section-title {
-  font-size: 20px;
-  margin-bottom: 20px;
-  text-align: center;
-}
-
-.charts-container {
-  display: flex;
-  flex-direction: column; /* 纵向排列 */
-  gap: 20px; /* 图表之间的间距 */
-}
-
-.chart-card {
+.device-button {
+  border: 1px solid #cbd5e1;
+  border-radius: 14px;
   background: #fff;
-  border-radius: 10px;
-  padding: 20px;
-  box-shadow: 0 2px 12px rgba(0, 0, 0, 0.1);
-  width: 100%; /* 占满页面宽度 */
-}
-
-.chart-title {
-  font-size: 16px;
-  margin-bottom: 10px;
-  font-weight: bold;
-  text-align: center; /* 标题居中 */
-}
-
-.chart {
-  width: 100%; /* 占满父容器宽度 */
-  height: 300px; /* 固定高度 */
-}
-
-.scale-slider {
-  margin-top: 10px;
-  width: 100%; /* 滑块宽度与图一致 */
-}
-
-/* 修改智能助手的样式 */
-.ai-assistant-container {
-  position: fixed;
-  top: 20px;
-  right: 20px;
-  z-index: 1000;
-}
-
-.assistant-toggle-btn {
-  width: 50px;
-  height: 50px;
-  border-radius: 50%;
-  background: #007bff;
-  border: none;
+  padding: 12px;
+  text-align: left;
   cursor: pointer;
   display: flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.2);
-  transition: transform 0.3s ease;
-}
-
-.assistant-toggle-btn:hover {
-  transform: scale(1.1);
-}
-
-.chat-window-fullscreen {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: white;
-  z-index: 1001;
-  display: flex;
   flex-direction: column;
-  box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+  gap: 6px;
+  transition: 0.2s ease;
 }
 
-.chat-header {
-  padding: 10px;
-  background: #f8f9fa;
+.device-button span {
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.device-button small {
+  color: #64748b;
+}
+
+.device-action {
+  font-style: normal;
+  font-size: 12px;
+  font-weight: 700;
+  color: #2563eb;
+}
+
+.device-button.active {
+  border-color: #16a34a;
+  box-shadow: 0 10px 20px rgba(22, 163, 74, 0.14);
+  transform: translateY(-1px);
+}
+
+.device-button.strain.active {
+  border-color: #d97706;
+  box-shadow: 0 10px 20px rgba(217, 119, 6, 0.16);
+}
+
+.summary-card {
+  margin-top: 18px;
+  border-radius: 18px;
+  padding: 18px;
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+  color: #f8fafc;
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(280px, 0.7fr);
+  gap: 18px;
+}
+
+.summary-card h2 {
+  margin: 6px 0 8px;
+  font-size: 28px;
+}
+
+.summary-label {
+  margin: 0;
+  color: #94a3b8;
+}
+
+.summary-text {
+  margin: 0;
+  color: #cbd5e1;
+  line-height: 1.6;
+}
+
+.workspace-launch-card {
+  position: relative;
+  overflow: hidden;
+}
+
+.workspace-launch-card::after {
+  content: "";
+  position: absolute;
+  inset: auto -40px -40px auto;
+  width: 180px;
+  height: 180px;
+  background: radial-gradient(circle, rgba(96, 165, 250, 0.22), transparent 70%);
+  pointer-events: none;
+}
+
+.summary-meta {
+  display: grid;
+  gap: 12px;
+}
+
+.summary-meta div {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  padding: 12px 14px;
+}
+
+.summary-meta span {
+  display: block;
+  color: #94a3b8;
+  font-size: 13px;
+  margin-bottom: 6px;
+}
+
+.summary-meta strong {
+  color: #f8fafc;
+}
+
+.note-card {
+  border-radius: 16px;
+  background: #f8fafc;
+  border: 1px solid #dbeafe;
+  padding: 14px 16px;
+  color: #334155;
+  line-height: 1.7;
+  margin-bottom: 18px;
+}
+
+.channel-card + .channel-card {
+  margin-top: 18px;
+}
+
+.channel-header {
   display: flex;
   justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 14px;
+}
+
+.channel-header h3 {
+  margin: 0 0 6px;
+  color: #0f172a;
+}
+
+.channel-header p {
+  margin: 0;
+  color: #64748b;
+}
+
+.channel-tag {
+  background: #dcfce7;
+  color: #166534;
+  border-radius: 999px;
+  padding: 6px 12px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.limit-grid {
+  display: grid;
+  gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.limit-panel {
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+  padding: 16px;
+  background: #fff;
+}
+
+.current-panel {
+  background: linear-gradient(180deg, #f8fafc 0%, #ffffff 100%);
+}
+
+.edit-panel {
+  background: linear-gradient(180deg, #f0fdf4 0%, #ffffff 100%);
+}
+
+.panel-title {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.panel-title h4 {
+  margin: 0;
+  color: #0f172a;
+}
+
+.panel-title span {
+  color: #475569;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.metric-row,
+.field-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
   align-items: center;
 }
 
-.chat-messages {
-  flex: 1;
-  overflow-y: auto;
-  padding: 20px;
-  display: flex;
-  flex-direction: column;
+.metric-row + .metric-row,
+.field-row + .field-row {
+  margin-top: 12px;
 }
 
-.chat-input {
-  padding: 15px;
-  background: #fff;
-  border-top: 1px solid #eee;
-  display: flex;
-  gap: 10px;
+.metric-row strong {
+  color: #0f172a;
 }
 
-.chat-input input {
-  flex: 1;
-  padding: 10px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
+.sub-row {
+  color: #64748b;
   font-size: 14px;
 }
 
-.chat-input button {
-  padding: 10px 20px;
-  background: #007bff;
-  color: white;
-  border: none;
-  border-radius: 4px;
-  cursor: pointer;
-  transition: background-color 0.3s;
+.field-row span {
+  min-width: 48px;
+  color: #334155;
 }
 
-.chat-input button:hover {
-  background: #0056b3;
+.action-bar {
+  margin-top: 18px;
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
 }
 
-.close-btn {
-  background: none;
-  border: none;
-  font-size: 20px;
-  cursor: pointer;
-  color: #666;
+@media (max-width: 960px) {
+  .building-grid,
+  .summary-card,
+  .weather-summary-grid,
+  .wind-visual-grid,
+  .weather-action-layout,
+  .limit-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .panel-heading,
+  .channel-header {
+    flex-direction: column;
+  }
+
+  .overview-toolbar {
+    flex-direction: column;
+  }
+
+  .overview-type-switch {
+    width: 100%;
+  }
+
+  .overview-type-button {
+    min-width: 0;
+    flex: 1;
+  }
+
+  .overview-context-note {
+    max-width: none;
+    text-align: left;
+  }
 }
 
-/* 添加消息样式 */
-.message {
-  margin: 10px;
-  padding: 10px;
+/* ── Wind Visual Panel ─────────────────────────────────────────────── */
+
+.wind-visual-grid {
+  display: grid;
+  grid-template-columns: minmax(220px, 260px) minmax(0, 1fr);
+  gap: 16px;
+  margin-bottom: 16px;
+  align-items: start;
+}
+
+.wind-gauge-card {
+  background: #fff;
+  border: 1px solid #bfdbfe;
+  border-radius: 16px;
+  padding: 14px 12px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.gauge-eyebrow {
+  margin: 0 0 6px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  color: #2563eb;
+  text-transform: uppercase;
+  align-self: flex-start;
+}
+
+.gauge-canvas {
+  width: 100%;
+  height: 175px;
+}
+
+.gauge-badge-row {
+  margin-top: 4px;
+}
+
+.beaufort-badge {
+  display: inline-block;
+  padding: 4px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.wind-info-stack {
+  background: #fff;
+  border: 1px solid #bfdbfe;
+  border-radius: 16px;
+  padding: 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  justify-content: center;
+  min-height: 100%;
+}
+
+.wind-info-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 9px 12px;
+  background: rgba(239, 246, 255, 0.65);
+  border-radius: 10px;
+}
+
+.wind-info-row span {
+  color: #64748b;
+  font-size: 13px;
+}
+
+.wind-info-row strong {
+  color: #1e3a8a;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+/* ── Threshold Zone Visualization ──────────────────────────────────── */
+
+.threshold-zone-section {
+  margin-top: 16px;
+  padding: 14px 16px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 14px;
+}
+
+.tz-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+
+.tz-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0f172a;
+}
+
+.tz-note {
+  font-size: 11px;
+  color: #64748b;
+}
+
+.tz-bar-outer {
+  position: relative;
+  padding-bottom: 44px;
+}
+
+.tz-bar {
+  display: flex;
+  height: 32px;
   border-radius: 8px;
-  max-width: 80%;
+  overflow: hidden;
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.08);
 }
 
-.message.user {
-  margin-left: auto;
-  background-color: #e3f2fd;
+.tz-seg {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.tz-seg span {
+  font-size: 10px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.92);
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
+}
+
+.tz-over { flex: 0.35; }
+.tz-safe { flex: 1.3; }
+
+.tz-over {
+  background: linear-gradient(90deg, #ef4444, #dc2626);
+}
+
+.tz-safe {
+  background: linear-gradient(90deg, #16a34a, #22c55e, #16a34a);
+}
+
+.tz-safe-range span {
+  padding: 0 10px;
+  font-size: 9px;
+  letter-spacing: 0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.tz-markers {
+  position: relative;
+  height: 44px;
+}
+
+.tz-mark {
+  position: absolute;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  top: 0;
+}
+
+.tz-mark-line {
+  width: 1.5px;
+  height: 10px;
+  background: #475569;
+}
+
+.tz-mark-val {
+  font-size: 10px;
+  font-weight: 700;
+  color: #0f172a;
+  white-space: nowrap;
+  margin-top: 2px;
+}
+
+.tz-mark-sub {
+  font-size: 9px;
+  color: #64748b;
+  white-space: nowrap;
+}
+
+.tz-mark-mid .tz-mark-line {
+  background: #15803d;
+}
+
+.tz-mark-mid .tz-mark-val {
+  color: #15803d;
+}
+
+/* ── Overview Panel ── */
+.overview-eyebrow { color: #7c3aed; }
+
+.overview-panel .panel-heading { align-items: flex-start; }
+
+.overview-header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.overview-loaded-tag {
+  font-size: 12px;
+  color: #64748b;
+  background: #f1f5f9;
+  border: 1px solid #e2e8f0;
+  border-radius: 12px;
+  padding: 2px 10px;
+  white-space: nowrap;
+}
+.overview-loaded-tag.all-loaded {
+  color: #16a34a;
+  background: #dcfce7;
+  border-color: #86efac;
+}
+
+.overview-toolbar {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: flex-start;
+  margin-bottom: 12px;
+}
+
+.overview-type-switch {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 16px;
+}
+
+.overview-type-button {
+  border: none;
+  background: transparent;
+  color: #475569;
+  border-radius: 12px;
+  padding: 10px 14px;
+  min-width: 144px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  cursor: pointer;
+  transition: 0.2s ease;
+}
+
+.overview-type-button span {
+  font-size: 14px;
+  font-weight: 700;
+  color: inherit;
+}
+
+.overview-type-button small {
+  font-size: 11px;
+  color: inherit;
+  opacity: 0.85;
+}
+
+.overview-type-button.active {
+  background: linear-gradient(135deg, #eff6ff 0%, #dbeafe 100%);
+  color: #1d4ed8;
+  box-shadow: 0 10px 18px rgba(59, 130, 246, 0.14);
+}
+
+.overview-context-note {
+  margin: 0;
+  max-width: 420px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: #64748b;
   text-align: right;
 }
 
-.message.assistant {
-  margin-right: auto;
-  background-color: #f5f5f5;
-  text-align: left;
+.overview-legend {
+  display: flex;
+  align-items: center;
+  gap: 6px 14px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+  font-size: 12px;
+  color: #64748b;
+}
+.legend-dot {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 2px;
+  flex-shrink: 0;
 }
 
-.message-header {
-  margin-bottom: 5px;
-  font-size: 0.9em;
-  color: #666;
+.overview-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 28px 0;
+  color: #94a3b8;
+  font-size: 14px;
+  text-align: center;
+}
+.overview-loading {
+  padding: 16px 0;
+  text-align: center;
+  color: #64748b;
+  font-size: 13px;
 }
 
-.message-content {
-  word-break: break-word;
-}
-
-.message-text {
-  line-height: 1.5;
-}
-.divider {
-  margin: 2px;
-  border: none;
-  border-top: 1px solid #e0e0e0;
-}
-
-/* 响应式布局 */
-@media (max-width: 768px) {
-  .parameter-row {
-    flex-direction: column;
-    align-items: flex-start;
-  }
-
-  .device-grid {
-    grid-template-columns: repeat(auto-fill, minmax(70px, 1fr));
-  }
-
-  .parameter-icon {
-    margin-right: 5px;
-  }
-
-  .parameter-row h1 {
-    margin-bottom: 5px;
-  }
-
-  .parameter-group {
-    padding: 0.4rem;
-  }
-}
-
-@media (max-width: 480px) {
-  .device-grid {
-    grid-template-columns: repeat(auto-fill, minmax(60px, 1fr));
-  }
-
-  .device-item {
-    padding: 4px 6px;
-    font-size: 0.8rem;
-  }
-
-  .building-group h3 {
-    font-size: 0.9rem;
-  }
-}
-
-/* 调整输入框样式 */
-:deep(input),
-:deep(.el-input__inner),
-:deep(.u-input) {
+.overview-chart-canvas {
   width: 100%;
-  max-width: 160px;
+  min-height: 240px;
+  transition: height 0.3s ease;
 }
 
-/* 针对按钮的样式调整 */
-:deep(.el-button),
-:deep(.u-button) {
-  padding: 8px 15px;
-  font-size: 0.9rem;
+.overview-status-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 10px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid #e2e8f0;
+}
+.overview-status-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 11px;
+  color: #94a3b8;
+}
+.st-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #e2e8f0;
+  flex-shrink: 0;
+}
+.overview-status-item.st-loaded .st-dot  { background: #22c55e; }
+.overview-status-item.st-loaded          { color: #374151; }
+.overview-status-item.st-error  .st-dot  { background: #ef4444; }
+.overview-status-item.st-error           { color: #dc2626; }
+.overview-status-item.st-loading .st-dot { background: #f59e0b; animation: pulse-dot 1s infinite; }
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; }
+  50%       { opacity: 0.3; }
 }
 
-/* 确保滚动视图包含所有内容 */
-html, body {
-  height: 100%;
-  overflow-y: auto;
-  scroll-behavior: smooth;
-}
-
-/* 添加针对最后一个卡片的样式 */
-.parameter-group:last-child {
-  margin-bottom: 80px; /* 为最后一个卡片添加额外的底部间距 */
-}
-
-/* 针对限值设置组的特定样式 */
-.parameter-group:last-of-type {
-  padding-bottom: 20px;
-}
-
-/* 针对应用按钮的样式 */
-.parameter-row:last-child .u-button,
-.parameter-row:last-child button {
-  margin-bottom: 15px;
-}
-
-.device-type-badge {
-  padding: 2px 8px;
-  border-radius: 12px;
-  font-size: 0.8rem;
-  margin-left: 8px;
-}
-
-.acc-badge {
-  background-color: #e3f2fd;
-  color: #1976d2;
-}
-
-.strain-badge {
-  background-color: #fff8e1;
-  color: #ff8f00;
-}
-
-.device-item.strain-gauge {
-  background-color: #fff8e1;
-  border-left: 3px solid #ff8f00;
-}
-
-.device-item.strain-gauge.active {
-  background-color: #ff8f00;
-  color: white;
-}
 </style>
-
-

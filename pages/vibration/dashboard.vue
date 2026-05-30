@@ -1,4 +1,4 @@
-﻿<template>
+<template>
   <UDashboardPanelContent class="dashboard-page">
     <div class="page-header">
       <h1 class="page-title">设备监控仪表盘</h1>
@@ -292,6 +292,13 @@ import * as echarts from 'echarts'
 import { ElMessage } from 'element-plus'
 import { ArrowRight } from '@element-plus/icons-vue'
 import axios from 'axios'
+import {
+  defaultVibrationAlertConfig,
+  deriveAlertMetrics,
+  getAlertLevelClass,
+  getAlertLevelLabel as getAlertLevelText,
+  getAlertLevelTagType as getAlertTagType
+} from '~/composables/useVibrationAlertConfig'
 
 const router = useRouter()
 const API_BASE_URL = 'http://8.153.161.229:8009'
@@ -430,83 +437,20 @@ const currentMonthlyData = ref<{
 
 // 存储预处理的图表配置
 const chartOptions = ref<{ [key: string]: any }>({})
+const alertConfig = ref(defaultVibrationAlertConfig)
 
-// 获取异常级别类型
-const getAlarmType = (item: any): 'alarm' | 'warning' => {
-  // 优先使用API返回的type字段
-  if (item.type) {
-    const alarmType = item.type === 'alarm' ? 'alarm' : 'warning'
-    console.log(`[预警调试] 使用API type字段: ${item.type} -> ${alarmType}, 数据: ${item.data}, 方向: ${item.direction}`)
-    return alarmType
-  }
-  
-  // 根据方向获取对应的阈值
-  const dataValue = Math.abs(item.data)
-  let threshold = 0
-  
-  // 根据direction确定要比较的阈值
-  switch (item.direction) {
-    case 'x_above_max':
-    case 'x_below_min':
-      threshold = thresholds.x_limit
-      break
-    case 'y_above_max':
-    case 'y_below_min':
-      threshold = thresholds.y_limit
-      break
-    case 'z_above_max':
-    case 'z_below_min':
-      threshold = thresholds.z_limit
-      break
-    case 'ch1_above_max':
-    case 'ch1_below_min':
-      threshold = thresholds.ch1_limit
-      break
-    case 'ch2_above_max':
-    case 'ch2_below_min':
-      threshold = thresholds.ch2_limit
-      break
-    default:
-      threshold = thresholds.message_limit // 默认使用短信阈值
-  }
-  
-  // 分级判断：如果超过email_limit但不超过message_limit为warning，超过message_limit为alarm
-  let alarmType: 'alarm' | 'warning'
-  if (dataValue >= thresholds.message_limit) {
-    alarmType = 'alarm'
-  } else if (dataValue >= thresholds.email_limit) {
-    alarmType = 'warning'
-  } else {
-    alarmType = 'warning' // 默认warning
-  }
-  
-  console.log(`[预警调试] 异常检测 - 数据值: ${item.data}, 绝对值: ${dataValue}, 方向: ${item.direction}, 对应阈值: ${threshold}, email阈值: ${thresholds.email_limit}, 短信阈值: ${thresholds.message_limit}, 判断结果: ${alarmType}`)
-  
-  return alarmType
-}
+const getAbnormalMetrics = (item: Record<string, unknown>) =>
+  deriveAlertMetrics(item, alertConfig.value)
 
-// 判断是否为警告级别（alarm）
-const isAlarmLevel = (item: any): boolean => {
-  return getAlarmType(item) === 'alarm'
-}
+// 将旧接口异常记录统一派生为三级预警展示。
+const getAlarmLevelLabel = (item: Record<string, unknown>): string =>
+  getAlertLevelText(getAbnormalMetrics(item).level)
 
-// 获取警告级别标签
-const getAlarmLevelLabel = (item: any): string => {
-  const type = getAlarmType(item)
-  return type === 'alarm' ? '警告' : '预警'
-}
+const getAlarmLevelTagType = (item: Record<string, unknown>): "success" | "warning" | "info" | "primary" | "danger" =>
+  getAlertTagType(getAbnormalMetrics(item).level)
 
-// 获取警告级别标签类型
-const getAlarmLevelTagType = (item: any): "success" | "warning" | "info" | "primary" | "danger" => {
-  const type = getAlarmType(item)
-  return type === 'alarm' ? 'danger' : 'warning'
-}
-
-// 获取异常项的CSS类
-const getAbnormalItemClass = (item: any): string => {
-  const type = getAlarmType(item)
-  return type === 'alarm' ? 'abnormal-item alarm-level' : 'abnormal-item warning-level'
-}
+const getAbnormalItemClass = (item: Record<string, unknown>): string =>
+  `abnormal-item ${getAlertLevelClass(getAbnormalMetrics(item).level)}`
 
 // 初始化实时图表
 const initializeRealtimeCharts = () => {
@@ -1472,7 +1416,7 @@ const backToMain = () => {
 
 // 跳转到异常数据页面
 const goToAbnormalPage = () => {
-  router.push('/abnormal')
+  router.push('/vibration/abnormal')
 }
 
 // 格式化时间
@@ -2130,6 +2074,16 @@ watch(selectedDevice, (newDevice: string) => {
 .abnormal-item.warning-level {
   border-left: 4px solid #fbbf24;
   background: linear-gradient(135deg, rgba(251, 191, 36, 0.08) 0%, rgba(251, 191, 36, 0.16) 100%);
+}
+
+.abnormal-item.notice-level {
+  border-left: 4px solid #60a5fa;
+  background: linear-gradient(135deg, rgba(96, 165, 250, 0.08) 0%, rgba(96, 165, 250, 0.16) 100%);
+}
+
+.abnormal-item.normal-level {
+  border-left: 4px solid #94a3b8;
+  background: linear-gradient(135deg, rgba(148, 163, 184, 0.08) 0%, rgba(148, 163, 184, 0.14) 100%);
 }
 
 .abnormal-header {

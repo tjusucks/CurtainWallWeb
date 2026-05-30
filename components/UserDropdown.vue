@@ -43,12 +43,21 @@ import {onMounted} from 'vue';
 import { userState } from '@/composables/useUserState'
 
 const state = userState
-const loginUser = ref(localStorage.getItem("email"));
+const loginUser = ref("");
 const router = useRouter();
 
 
 onMounted(() => {
-  loginUser.value = localStorage.getItem("email");
+  let email = localStorage.getItem("email");
+  if (!email) {
+    try {
+      const storedUser = JSON.parse(localStorage.getItem('auth_user') || '{}');
+      email = storedUser?.email || storedUser?.username || '';
+    } catch {
+      email = '';
+    }
+  }
+  loginUser.value = email || '';
   state.name = loginUser.value || '用户';
 });
 
